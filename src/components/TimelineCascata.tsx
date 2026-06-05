@@ -215,10 +215,10 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                            <span className="status-led status-danger" data-tooltip="Falta crédito, mas a declaração está Bloqueada para retificação na RFB.">BLOQUEADO</span>
                         ) : dcomp.statusCascata === 'EDITADO' ? (
                            <span className="status-led status-success" data-tooltip={getTooltip('EDITADO', bloqueado, vigente)}>EDITADO</span>
-                        ) : bloqueado ? (
-                           <span className="status-led status-danger" data-tooltip={getTooltip('BLOQ', true, vigente)}>BLOQUEADO</span>
                         ) : !vigente ? (
                            <span className="status-led status-muted" data-tooltip={getTooltip('NAO_VIGENTE', bloqueado, false)}>Não vigente</span>
+                        ) : bloqueado ? (
+                           <span className="status-led status-danger" data-tooltip={getTooltip('BLOQ', true, vigente)}>BLOQUEADO</span>
                         ) : (
                            <span className="status-led status-success" data-tooltip={getTooltip('OK', bloqueado, vigente)}>OK</span>
                         )}

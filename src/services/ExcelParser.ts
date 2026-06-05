@@ -134,10 +134,24 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
     // Função para achar a DCOMP Ancestral (Origem) de qualquer declaração
     const getOriginalId = (id: string): string => {
       let current = id;
-      while (rectifiesMap.has(current)) {
+      let failsafe = 0;
+      while (rectifiesMap.has(current) && failsafe < 100) {
         current = rectifiesMap.get(current)!;
+        failsafe++;
       }
       return current;
+    };
+
+    const getDepth = (id: string): number => {
+      let current = id;
+      let depth = 0;
+      let failsafe = 0;
+      while (rectifiesMap.has(current) && failsafe < 100) {
+        current = rectifiesMap.get(current)!;
+        depth++;
+        failsafe++;
+      }
+      return depth;
     };
 
     // 2. Agrupar em blocos com base na Origem
@@ -154,7 +168,11 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
     // E herdar a Data de Transmissão da Original
     const groups = Array.from(groupsMap.values());
     groups.forEach(group => {
-      group.sort((a, b) => a.dataTransmissao.getTime() - b.dataTransmissao.getTime());
+      group.sort((a, b) => {
+        const depthDiff = getDepth(a.id) - getDepth(b.id);
+        if (depthDiff !== 0) return depthDiff;
+        return a.dataTransmissao.getTime() - b.dataTransmissao.getTime();
+      });
       
       const dataRefOriginal = group[0].dataTransmissao;
       group.forEach(d => {
