@@ -1,0 +1,349 @@
+:root {
+  --font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  --color-primary: rgb(0, 179, 255);
+  --color-primary-glow: rgba(0, 179, 255, 0.4);
+  
+  --color-success: #22c55e;
+  --color-success-glow: rgba(34, 197, 94, 0.4);
+  --color-danger: #ef4444;
+  --color-danger-glow: rgba(239, 68, 68, 0.4);
+  --color-warning: #f59e0b;
+  --color-warning-glow: rgba(245, 158, 11, 0.4);
+
+  --border-radius-sm: 6px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 20px;
+  --border-radius-xl: 32px;
+  
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  --color-bg: #030305;
+  --color-bg-gradient-1: #001f3f;
+  --color-bg-gradient-2: #000000;
+  
+  --color-glass-bg: rgba(20, 20, 25, 0.6);
+  --color-glass-border: rgba(255, 255, 255, 0.06);
+  --color-glass-hover: rgba(30, 30, 40, 0.8);
+  
+  --color-text-main: #f8fafc;
+  --color-text-muted: #94a3b8;
+
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 20px rgba(0, 179, 255, 0.15);
+}
+
+[data-theme="light"] {
+  --color-bg: #e2e8f0;
+  --color-bg-gradient-1: #cbd5e1;
+  --color-bg-gradient-2: #e2e8f0;
+  
+  --color-glass-bg: rgba(255, 255, 255, 0.9);
+  --color-glass-border: rgba(0, 0, 0, 0.2);
+  --color-glass-hover: rgba(255, 255, 255, 1);
+  
+  --color-text-main: #1e293b;
+  --color-text-muted: #475569;
+  
+  --shadow-glass: 0 8px 32px 0 rgba(15, 23, 42, 0.05);
+  --shadow-glow: 0 0 20px rgba(0, 179, 255, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+  min-height: 100vh;
+}
+
+/* Fundo Animado com Mesh Gradient Premium */
+.bg-mesh-gradient {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  background: radial-gradient(circle at 15% 50%, var(--color-bg-gradient-1) 0%, transparent 50%),
+              radial-gradient(circle at 85% 30%, var(--color-bg-gradient-2) 0%, transparent 50%);
+  background-color: var(--color-bg);
+  opacity: 0.8;
+  filter: blur(60px);
+  transition: background var(--transition-slow);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--color-text-main);
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.5rem; }
+
+.text-muted { color: var(--color-text-muted); }
+.font-mono { font-family: monospace; letter-spacing: -0.02em; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
+.label-uppercase {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+}
+
+/* Layout */
+.container {
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+/* Glassmorphism Cards */
+.card-glass {
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--border-radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-glass);
+  transition: all var(--transition-normal);
+}
+
+.card-glass:hover {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.02em;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 4px 14px var(--color-primary-glow);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px var(--color-primary-glow);
+  background-color: var(--color-primary-hover);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--color-text-muted);
+}
+
+.btn-ghost:hover {
+  background-color: var(--color-glass-hover);
+  color: var(--color-text-main);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+.btn-outline:hover {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px var(--color-primary-glow);
+}
+
+/* Floating Table (Premium Style) */
+.table-floating-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  padding: 1rem 0; /* Breathing room para sombras */
+}
+
+.table-floating {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 0.75rem; /* Espaço entre as linhas (Pílulas) */
+  text-align: left;
+}
+
+.table-floating th {
+  padding: 0 0.5rem 0.5rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--color-glass-border);
+  vertical-align: bottom;
+}
+
+.table-floating td {
+  padding: 0.85rem 0.5rem;
+  font-size: 0.85rem;
+  background: var(--color-glass-bg);
+  border-top: 1px solid var(--color-glass-border);
+  border-bottom: 1px solid var(--color-glass-border);
+  transition: all var(--transition-fast);
+}
+
+/* Bordas arredondadas nos cantos da pílula (td) */
+.table-floating td:first-child {
+  border-left: 1px solid var(--color-glass-border);
+  border-top-left-radius: var(--border-radius-md);
+  border-bottom-left-radius: var(--border-radius-md);
+}
+
+.table-floating td:last-child {
+  border-right: 1px solid var(--color-glass-border);
+  border-top-right-radius: var(--border-radius-md);
+  border-bottom-right-radius: var(--border-radius-md);
+}
+
+/* Hover na linha inteira */
+.table-floating tbody tr {
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.table-floating tbody tr:hover {
+  z-index: 100;
+}
+
+.table-floating td:hover {
+  z-index: 1000;
+  position: relative;
+}
+
+.table-floating tbody tr:hover td {
+  background: var(--color-glass-hover);
+  border-color: var(--color-primary-glow);
+  box-shadow: var(--shadow-glow);
+  transform: scale(1.002);
+}
+
+/* LED Status Tags */
+.status-led {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--border-radius-sm);
+  position: relative; /* Para a tooltip */
+  cursor: help;
+  transition: all var(--transition-fast);
+}
+
+.status-led:hover {
+  z-index: 9999;
+}
+
+.status-led::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: block;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.status-success { color: var(--color-success); }
+.status-danger { color: var(--color-danger); }
+.status-warning { color: var(--color-warning); }
+.status-muted { color: var(--color-text-muted); box-shadow: none !important; }
+.status-muted::before { box-shadow: none; background-color: var(--color-text-muted); opacity: 0.5; }
+
+.label-uppercase {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* Tooltip nativo (CSS) */
+.status-led::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 150%;
+  left: 0; /* Alinha à esquerda do LED para não cortar na borda da tabela */
+  transform: translateY(10px);
+  background: var(--color-glass-hover);
+  border: 1px solid var(--color-primary);
+  color: var(--color-text-main);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-glow);
+  z-index: 9999;
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.status-led:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Inputs & Dropzone */
+.input-field {
+  padding: 0.75rem 1rem;
+  background-color: var(--color-glass-bg);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-main);
+  font-family: inherit;
+  font-size: 0.875rem;
+  transition: all var(--transition-fast);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-glow);
+}
