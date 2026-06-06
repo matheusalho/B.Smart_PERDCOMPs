@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Joyride } from 'react-joyride';
-import type { Step } from 'react-joyride';
+import { Joyride, STATUS } from 'react-joyride';
+import type { ButtonType, EventData, PartialDeep, Step, Styles } from 'react-joyride';
 import { useStore } from '../store';
 import { PlayCircle } from 'lucide-react';
 
@@ -43,6 +43,18 @@ const STEPS_COM_DADOS: Step[] = [
   }
 ];
 
+const joyrideButtons: ButtonType[] = ['back', 'close', 'primary', 'skip'];
+
+const joyrideStyles: PartialDeep<Styles> = {
+  beaconInner: {
+    backgroundColor: '#00b3ff',
+  },
+  beaconOuter: {
+    backgroundColor: 'rgba(0, 179, 255, 0.3)',
+    borderColor: 'rgba(0, 179, 255, 0.5)',
+  }
+};
+
 export const OnboardingTutorial: React.FC = () => {
   const [run, setRun] = useState(false);
   const [tourKey, setTourKey] = useState(0);
@@ -53,10 +65,10 @@ export const OnboardingTutorial: React.FC = () => {
 
   const steps = temDados ? STEPS_COM_DADOS : STEPS_SEM_DADOS;
 
-  const handleJoyrideCallback = (data: any) => {
+  const handleJoyrideCallback = (data: EventData) => {
     const { status } = data;
 
-    if (['finished', 'skipped'].includes(status)) {
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
       setRun(false);
     }
   };
@@ -88,25 +100,17 @@ export const OnboardingTutorial: React.FC = () => {
         steps={steps}
         run={run}
         continuous={true}
-        disableScrolling={false}
-        scrollOffset={150}
-        {...({ showProgress: true, showSkipButton: true } as any)}
-        callback={handleJoyrideCallback}
-        styles={{
-          options: {
-            primaryColor: '#00b3ff',
-            backgroundColor: 'var(--color-bg)',
-            textColor: 'var(--color-text-main)',
-            arrowColor: 'var(--color-bg)'
-          },
-          beaconInner: {
-            backgroundColor: '#00b3ff',
-          },
-          beaconOuter: {
-            backgroundColor: 'rgba(0, 179, 255, 0.3)',
-            borderColor: 'rgba(0, 179, 255, 0.5)',
-          }
-        } as any}
+        onEvent={handleJoyrideCallback}
+        options={{
+          showProgress: true,
+          buttons: joyrideButtons,
+          scrollOffset: 150,
+          primaryColor: '#00b3ff',
+          backgroundColor: 'var(--color-bg)',
+          textColor: 'var(--color-text-main)',
+          arrowColor: 'var(--color-bg)'
+        }}
+        styles={joyrideStyles}
       />
     </div>
   );

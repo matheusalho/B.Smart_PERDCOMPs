@@ -2,8 +2,18 @@
 import type { SimulacaoSalva, CadeiaRelacional } from '../models/types';
 import { format } from 'date-fns';
 import { isVigente } from '../utils/statusHelper';
+import type { jsPDF as JsPDFDocument } from 'jspdf';
+import type { RowInput, Table } from 'jspdf-autotable';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+type AutoTableDoc = JsPDFDocument & {
+  lastAutoTable?: Table;
+};
+
+const getLastAutoTableFinalY = (doc: AutoTableDoc, fallbackY: number): number => (
+  doc.lastAutoTable?.finalY ?? fallbackY
+);
 
 export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'dark' | 'light', todasAsCadeias: CadeiaRelacional[] = [], empresa: { razaoSocial: string; cnpj: string } | null = null) => {
   const { default: jsPDF } = await import('jspdf');
@@ -13,7 +23,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
-  });
+  }) as AutoTableDoc;
 
   const isDark = theme === 'dark';
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -42,12 +52,11 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
   // Monkey patch no doc.addPage para que o autotable e novas páginas herdem o fundo dark automaticamente
   const originalAddPage = doc.addPage.bind(doc);
-  // @ts-ignore
-  doc.addPage = (...args: any[]) => {
-    originalAddPage(...args);
+  doc.addPage = ((formatArg?: string | number[], orientation?: 'p' | 'portrait' | 'l' | 'landscape') => {
+    originalAddPage(formatArg, orientation);
     drawBackground();
     return doc;
-  };
+  }) as JsPDFDocument['addPage'];
 
   drawBackground(); // Fundo da Capa Inicial
 
@@ -207,8 +216,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
     }
   });
 
-  // @ts-ignore
-  let startY = doc.lastAutoTable.finalY + 15;
+  let startY = getLastAutoTableFinalY(doc, currentY + 5) + 15;
 
   simulacoes.forEach((simulacao, index) => {
     // Nova página se não couber a próxima simulação
@@ -264,8 +272,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       }
     });
 
-    // @ts-ignore
-    startY = doc.lastAutoTable.finalY + 14;
+    startY = getLastAutoTableFinalY(doc, startY) + 14;
 
     // 1º Edições Manuais
     if (startY > pageHeight - 40) {
@@ -286,7 +293,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       doc.text('Nenhuma edição manual realizada nesta cadeia.', 14, startY);
       startY += 12;
     } else {
-      const manualBody: any[] = [];
+      const manualBody: RowInput[] = [];
       dcompsEditadas.forEach(d => {
         d.debitos.forEach(deb => {
           if (deb.valorTotal !== deb.valorTotalOriginal) {
@@ -313,12 +320,11 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
           5: { fontStyle: 'bold', textColor: successGreen }
         }
       });
-      // @ts-ignore
-      startY = doc.lastAutoTable.finalY + 14;
+      startY = getLastAutoTableFinalY(doc, startY) + 14;
 
       // Adicionar as tabelas comparativas "Antes e Depois" para as edições manuais
-      const editadasOriginalBody: any[] = [];
-      const editadasNovoBody: any[] = [];
+      const editadasOriginalBody: RowInput[] = [];
+      const editadasNovoBody: RowInput[] = [];
 
       dcompsEditadas.forEach(d => {
         const origCreditoDetalhado = d.valorTotalCreditoDetalhadoOriginal;
@@ -371,8 +377,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         alternateRowStyles: { fillColor: tableAltBg }
       });
 
-      // @ts-ignore
-      startY = doc.lastAutoTable.finalY + 10;
+      startY = getLastAutoTableFinalY(doc, startY) + 10;
 
       if (startY > pageHeight - 40) {
         doc.addPage();
@@ -394,8 +399,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         alternateRowStyles: { fillColor: tableAltBg }
       });
 
-      // @ts-ignore
-      startY = doc.lastAutoTable.finalY + 14;
+      startY = getLastAutoTableFinalY(doc, startY) + 14;
     }
 
     // 2º Espelho Geral da Cadeia (Antes e Depois)
@@ -422,8 +426,8 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       doc.text('Nenhuma declaração foi afetada nesta simulação.', 14, startY);
       startY += 12;
     } else {
-      const colateralOriginalBody: any[] = [];
-      const colateralNovoBody: any[] = [];
+      const colateralOriginalBody: RowInput[] = [];
+      const colateralNovoBody: RowInput[] = [];
 
       dcompsAfetadas.forEach(d => {
         // Obter os valores antigos
@@ -473,8 +477,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         alternateRowStyles: { fillColor: tableAltBg }
       });
 
-      // @ts-ignore
-      startY = doc.lastAutoTable.finalY + 10;
+      startY = getLastAutoTableFinalY(doc, startY) + 10;
 
       if (startY > pageHeight - 40) {
         doc.addPage();
@@ -496,8 +499,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         alternateRowStyles: { fillColor: tableAltBg }
       });
 
-      // @ts-ignore
-      startY = doc.lastAutoTable.finalY + 14;
+      startY = getLastAutoTableFinalY(doc, startY) + 14;
     }
 
     // 3º PER/DCOMPs Hipotéticas Injetadas
@@ -514,7 +516,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       doc.text('3º Injeção de PER/DCOMPs Hipotéticas', 14, startY);
       startY += 6;
       
-      const hipoteticaBody: any[] = [];
+      const hipoteticaBody: RowInput[] = [];
       dcompsHipoteticas.forEach(d => {
         hipoteticaBody.push([
           d.id,
@@ -534,8 +536,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         alternateRowStyles: { fillColor: tableAltBg }
       });
       
-      // @ts-ignore
-      startY = doc.lastAutoTable.finalY + 14;
+      startY = getLastAutoTableFinalY(doc, startY) + 14;
     }
   });
 

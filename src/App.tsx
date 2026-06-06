@@ -13,7 +13,7 @@ function App() {
   const temDados = Object.keys(cadeias).length > 0;
   const limparDados = useStore(state => state.limparDados);
   const limparSimulacoesSalvas = useStore(state => state.limparSimulacoesSalvas);
-  const simulacoesSalvas = useStore(state => state.simulacoesSalvas) || [];
+  const simulacoesSalvas = useStore(state => state.simulacoesSalvas);
 
   const sizeKB = useMemo(() => {
     return (new Blob([JSON.stringify(simulacoesSalvas)]).size / 1024).toFixed(2);

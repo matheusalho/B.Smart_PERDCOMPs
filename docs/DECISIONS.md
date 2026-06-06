@@ -25,7 +25,23 @@ Este documento armazena o histórico das principais decisões arquiteturais (ADR
 ## 5. Recálculo Baseado na Origem (Valor Original)
 - **Contexto:** Quando se recálcula multa e juros a partir da alteração do valor principal num débito, podem haver divergências de arredondamento após N modificações.
 - **Decisão:** Sempre recalcular a proporção em cima do `valorPrincipalOriginal` absoluto (vindo da planilha), e não no valor mutável incremental, impedindo derrapagens de dízimas periódicas.
+
 ## 6. Lógica de Filtros Visuais na Tabela
 - **Contexto:** Havia confusão sobre o que deveria ser ocultado ou mostrado em filtros como "OK", "A Retificar" e "Impedido".
 - **Decisão:** Optou-se por aplicar a restrição matemática do negócio no React. Exemplo: "OK" exige que o documento seja Vigente e Não Bloqueado. "Impedido" lista exatamente os documentos não vigentes (substituídos) e os vigentes que possuem flag `isBloqueado`.
 - **Consequência:** A UI filtra com altíssima precisão baseada na capacidade real de edição do usuário, em vez de depender apenas do nome bruto do status original.
+
+## 7. Preservação dos Campos `...Original`
+- **Contexto:** A aplicação precisa simular alterações sem perder rastreabilidade da base importada do e-CAC.
+- **Decisão:** Campos com sufixo `...Original` representam valores importados ou snapshots históricos e não devem ser sobrescritos por simulações. Valores simulados/calculados devem ser mantidos em campos mutáveis separados, como `valorPrincipal`, `valorTotal`, `valorUtilizadoPerdcomp`, `saldoCreditoOriginalCalculado` e flags de status.
+- **Consequência:** A UI e o PDF conseguem mostrar comparativos antes/depois, deltas e saldos anteriores sem contaminar a base original.
+
+## 8. Relatório Consolidado em PDF por Simulações Salvas
+- **Contexto:** O usuário precisa consolidar alterações de uma ou mais cadeias em um documento auditável.
+- **Decisão:** O relatório PDF é gerado a partir de `simulacoesSalvas`, e não diretamente da cadeia selecionada em edição. Cada simulação salva carrega snapshots de DCOMPs e KPIs no momento do salvamento.
+- **Consequência:** O relatório reflete cadeias explicitamente selecionadas para exportação e evita capturar estados transitórios não salvos.
+
+## 9. Exportação Excel Adiada
+- **Contexto:** A exportação PDF já cobre o fluxo principal de relatório consolidado, enquanto a exportação `.xlsx` exige decisões adicionais de layout, abas, colunas e rastreabilidade.
+- **Decisão:** A exportação Excel fica no backlog, com prazo a definir, para planejamento e implementação em sessão futura.
+- **Consequência:** A prioridade imediata passa a ser corrigir lint, ajustar o KPI de saldo restante na UI e manter o PDF estável.

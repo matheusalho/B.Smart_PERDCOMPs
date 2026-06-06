@@ -9,8 +9,7 @@ import { ModalHipotetica } from './ModalHipotetica';
 import { CascataKpis } from './CascataKpis';
 import { CascataFilters } from './CascataFilters';
 import { Settings, Pencil, Trash } from 'lucide-react';
-
-const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(val));
+import { formatCurrency } from '../utils/formatters';
 
 export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia }) => {
   const formatDate = (date: Date) => format(date, 'dd/MM/yyyy', { locale: ptBR });

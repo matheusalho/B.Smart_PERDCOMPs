@@ -35,17 +35,19 @@ interface Props {
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+const createEmptyDebito = (id: string): DebitoForm => ({
+  id,
+  codigoReceita: '',
+  periodoApuracao: '',
+  dataVencimento: '',
+  principal: '',
+  multa: '',
+  juros: ''
+});
+
 export const ModalHipotetica: React.FC<Props> = ({ onClose, onConfirm }) => {
   const [debitos, setDebitos] = useState<DebitoForm[]>([
-    {
-      id: Date.now().toString(),
-      codigoReceita: '',
-      periodoApuracao: '',
-      dataVencimento: '',
-      principal: '',
-      multa: '',
-      juros: ''
-    }
+    createEmptyDebito('debito-inicial')
   ]);
   const [filtroOrigem, setFiltroOrigem] = useState<string>('Todas');
   const origens = ['Todas', 'eSocial', 'EFD-Reinf CP', 'EFD-Reinf RET', 'Sero', 'MIT'];
@@ -58,15 +60,7 @@ export const ModalHipotetica: React.FC<Props> = ({ onClose, onConfirm }) => {
   const handleAddDebito = () => {
     setDebitos([
       ...debitos,
-      {
-        id: Date.now().toString(),
-        codigoReceita: '',
-        periodoApuracao: '',
-        dataVencimento: '',
-        principal: '',
-        multa: '',
-        juros: ''
-      }
+      createEmptyDebito(`debito-${Date.now()}`)
     ]);
   };
 

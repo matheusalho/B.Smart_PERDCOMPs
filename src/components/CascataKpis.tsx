@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatCurrency, formatCurrencyMagnitude } from '../utils/formatters';
 
 interface CascataKpisProps {
   totalCreditoAtual: number;
@@ -10,8 +11,6 @@ interface CascataKpisProps {
   docsRetificadosUsuario: number;
   docsARetificar: number;
 }
-
-const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(val));
 
 export const CascataKpis: React.FC<CascataKpisProps> = ({
   totalCreditoAtual,
@@ -49,14 +48,14 @@ export const CascataKpis: React.FC<CascataKpisProps> = ({
       <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
         <div className="label-uppercase">Valor Total dos Débitos Reduzidos</div>
         <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-          {formatCurrency(debitosReduzidos)}
+          {formatCurrencyMagnitude(debitosReduzidos)}
         </div>
       </div>
 
       <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
         <div className="label-uppercase">Lastro Original Disponibilizado</div>
         <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-          {formatCurrency(variacaoDebitos)}
+          {formatCurrencyMagnitude(variacaoDebitos)}
         </div>
       </div>
 
