@@ -1,8 +1,29 @@
 import * as XLSX from 'xlsx';
 import type { CadeiaRelacional, DCOMP, DebitoOficial } from '../models/types';
 
+type ExcelRow = Record<string, unknown>;
+
+const firstValue = (...values: unknown[]): unknown => (
+  values.find(value => value !== undefined && value !== null && value !== '')
+);
+
+const toStringValue = (value: unknown, fallback = ''): string => {
+  if (value === undefined || value === null || value === '') return fallback;
+  return String(value);
+};
+
+const toOptionalString = (value: unknown): string | undefined => {
+  const stringValue = toStringValue(value).trim();
+  return stringValue || undefined;
+};
+
+const toNumberValue = (value: unknown): number => {
+  if (value === undefined || value === null || value === '') return 0;
+  return Number(value);
+};
+
 // Função para converter data do Excel (número serial) para Date do JS
-const parseExcelDate = (excelDate: any): Date => {
+const parseExcelDate = (excelDate: unknown): Date => {
   if (!excelDate) return new Date();
   if (typeof excelDate === 'number') {
     // 25569 é o offset de dias entre 01/01/1900 (Excel) e 01/01/1970 (UNIX)
@@ -25,8 +46,31 @@ const parseExcelDate = (excelDate: any): Date => {
   return new Date();
 };
 
-export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
-  const workbook = XLSX.read(data, { type: 'array' });
+const formatPeriodoExcel = (excelVal: unknown): string => {
+  if (excelVal === undefined || excelVal === null || excelVal === '') return '';
+  const num = Number(excelVal);
+  if (!isNaN(num) && num > 10000) {
+    // É um serial de data Excel
+    const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+    // Compensar timezone para não voltar 1 dia no Brasil
+    date.setMinutes(date.getMinutes() + date.getTimezoneOffset());
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return String(excelVal);
+};
+
+export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[], empresa: { cnpj: string, razaoSocial: string } } => {
+  const workbook = XLSX.read(data, { 
+    type: 'array',
+    sheets: ['Processamento PERDCOMP', 'PERDCOMP Débitos'],
+    cellFormula: false,
+    cellHTML: false,
+    cellStyles: false,
+    cellText: false
+  });
 
   // Pular 3 linhas significa que o header está na linha de índice 3 (4ª linha)
   // SheetJS `range` ou apenas usar `{ range: 3 }` no sheet_to_json
@@ -34,13 +78,37 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
   const sheetProcessamento = workbook.Sheets['Processamento PERDCOMP'];
   const sheetDebitos = workbook.Sheets['PERDCOMP Débitos'];
 
-  if (!sheetProcessamento || !sheetDebitos) {
-    throw new Error('As abas "Processamento PERDCOMP" e "PERDCOMP Débitos" são obrigatórias.');
-  }
+  if (!sheetProcessamento) throw new Error("Aba 'Processamento PERDCOMP' não encontrada. Verifique se importou o 'Relatório de Análise e-CAC' correto gerado pelo Sistema INDEX.");
+  if (!sheetDebitos) throw new Error("Aba 'PERDCOMP Débitos' não encontrada. Verifique se importou o 'Relatório de Análise e-CAC' correto gerado pelo Sistema INDEX.");
 
   // Header na linha 3 (0-indexed)
-  const rowsProcessamento = XLSX.utils.sheet_to_json<any>(sheetProcessamento, { range: 3 });
-  const rowsDebitos = XLSX.utils.sheet_to_json<any>(sheetDebitos, { range: 3 });
+  const rowsProcessamento = XLSX.utils.sheet_to_json<ExcelRow>(sheetProcessamento, { range: 3 });
+  const rowsDebitos = XLSX.utils.sheet_to_json<ExcelRow>(sheetDebitos, { range: 3 });
+
+  if (rowsProcessamento.length === 0) {
+     throw new Error("Aba 'Processamento PERDCOMP' está vazia ou as colunas não estão na 4ª linha (linha 4 do Excel). Por favor, utilize o relatório gerado pelo Sistema INDEX sem alterações.");
+  }
+  
+  // Validação Colunas Críticas - Processamento
+  const hasColunaDcompProc = rowsProcessamento[0]['Número Perdcomp'] !== undefined || rowsProcessamento[0]['Número do PER/DCOMP'] !== undefined;
+  const hasColunaCredito = rowsProcessamento[0]['Valor Total do Crédito Detalhado'] !== undefined || rowsProcessamento[0]['Valor Total do Crédito'] !== undefined;
+  
+  if (!hasColunaDcompProc) {
+     throw new Error("Planilha inválida: Coluna 'Número do PER/DCOMP' ausente na aba de Processamento. Verifique se o relatório é o original do Sistema INDEX.");
+  }
+  if (!hasColunaCredito) {
+     throw new Error("Planilha inválida: Coluna 'Valor Total do Crédito Detalhado' ausente na aba de Processamento.");
+  }
+
+  if (rowsDebitos.length > 0) {
+    const hasColunaDcompDeb = rowsDebitos[0]['Número do PER/DCOMP'] !== undefined;
+    const hasColunaReceita = rowsDebitos[0]['Código de Receita'] !== undefined;
+    const hasColunaTotal = rowsDebitos[0]['Valor Total'] !== undefined;
+
+    if (!hasColunaDcompDeb || !hasColunaReceita || !hasColunaTotal) {
+       throw new Error("Planilha inválida: Colunas essenciais ausentes na aba 'PERDCOMP Débitos' (Ex: 'Número do PER/DCOMP', 'Código de Receita' ou 'Valor Total').");
+    }
+  }
 
   // Agrupar Débitos por "ID da Cadeia Relacional" E "Número do PER/DCOMP" (ou "Nº do Recibo PER/DCOMP")
   // A aba de débito tem: "Nº do Recibo PER/DCOMP" ou "Número do PER/DCOMP"?
@@ -48,7 +116,7 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
   const debitosPorDcomp: Record<string, DebitoOficial[]> = {};
   
   rowsDebitos.forEach((row, index) => {
-    const numeroDcomp = row['Número do PER/DCOMP'];
+    const numeroDcomp = toStringValue(row['Número do PER/DCOMP']);
     if (!numeroDcomp) return;
 
     if (!debitosPorDcomp[numeroDcomp]) {
@@ -57,29 +125,34 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
 
     debitosPorDcomp[numeroDcomp].push({
       id: `deb_${index}`,
-      codigoReceita: row['Código de Receita'] || '',
-      periodoApuracao: row['Período de Apuração do Débito'] || '',
-      dataVencimento: row['Data de Vencimento Tributo Quota'] || '',
-      valorPrincipal: Number(row['Valor Principal'] || 0),
-      valorMulta: Number(row['Valor Multa'] || 0),
-      valorJuros: Number(row['Valor Juros'] || 0),
-      valorTotal: Number(row['Valor Total'] || 0),
-      valorPrincipalOriginal: Number(row['Valor Principal'] || 0),
-      valorMultaOriginal: Number(row['Valor Multa'] || 0),
-      valorJurosOriginal: Number(row['Valor Juros'] || 0),
-      valorTotalOriginal: Number(row['Valor Total'] || 0),
-      cnpjDebito: row['CNPJ Detentor do Débito']
+      codigoReceita: toStringValue(row['Código de Receita']),
+      periodoApuracao: formatPeriodoExcel(row['Período de Apuração do Débito']),
+      dataVencimento: formatPeriodoExcel(row['Data de Vencimento Tributo Quota']),
+      valorPrincipal: toNumberValue(row['Valor Principal']),
+      valorMulta: toNumberValue(row['Valor Multa']),
+      valorJuros: toNumberValue(row['Valor Juros']),
+      valorTotal: toNumberValue(row['Valor Total']),
+      valorPrincipalOriginal: toNumberValue(row['Valor Principal']),
+      valorMultaOriginal: toNumberValue(row['Valor Multa']),
+      valorJurosOriginal: toNumberValue(row['Valor Juros']),
+      valorTotalOriginal: toNumberValue(row['Valor Total']),
+      cnpjDebito: toOptionalString(row['CNPJ Detentor do Débito'])
     });
   });
+
+  const empresa = {
+    cnpj: rowsDebitos.length > 0 ? toStringValue(rowsDebitos[0]['Cnpj Transmissor PER/DCOMP'], 'N/D') : 'N/D',
+    razaoSocial: rowsDebitos.length > 0 ? toStringValue(rowsDebitos[0]['Nome Empresarial'], 'N/D') : 'N/D'
+  };
 
   // Agrupar DCOMPs por Cadeia Relacional
   const cadeiasMap: Record<string, CadeiaRelacional> = {};
 
   rowsProcessamento.forEach(row => {
-    const idCadeia = row['IDs da Cadeia Relacional'];
+    const idCadeia = toStringValue(row['IDs da Cadeia Relacional']);
     if (!idCadeia) return;
 
-    const numeroDcomp = row['Número Perdcomp'] || row['Número do PER/DCOMP'];
+    const numeroDcomp = toStringValue(firstValue(row['Número Perdcomp'], row['Número do PER/DCOMP']));
     
     // Na tabela de Proc, temos:
     // Data Transmissão, Data de Transmissão do Perdcomp, Retificado ou Cancelado Por, 
@@ -87,22 +160,22 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
     
     const dcomp: DCOMP = {
       id: numeroDcomp,
-      dataTransmissaoOriginal: parseExcelDate(row['Data Transmissão'] || row['Data de Transmissão do Perdcomp']),
-      dataTransmissao: parseExcelDate(row['Data de Transmissão do Perdcomp'] || row['Data Transmissão']),
-      tipoDocumento: row['Tipo do Documento'] || row['Tipo de Documento'] || '',
-      situacao: row['Situação'] || 'Pendente',
-      indicadorCredito: row['Indicador de Crédito'] || '',
-      tipoCredito: row['Tipo de Crédito'] || '',
-      detentorCredito: row['Detentor do Crédito'] || '',
-      periodoApuracaoCredito: row['Período de Apuração do Crédito'] || '',
-      valorTotalCreditoDetalhado: Number(row['Valor Total do Crédito Detalhado'] || 0),
-      valorTotalCreditoDetalhadoOriginal: Number(row['Valor Total do Crédito Detalhado'] || 0),
-      valorCreditoDataTransmissao: Number(row['Valor do Crédito na Data de Transmissão'] || 0),
-      valorUtilizadoPerdcomp: Number(row['Valor Utilizado no Perdcomp'] || 0),
-      valorUtilizadoPerdcompOriginal: Number(row['Valor Utilizado no Perdcomp'] || 0),
+      dataTransmissaoOriginal: parseExcelDate(firstValue(row['Data Transmissão'], row['Data de Transmissão do Perdcomp'])),
+      dataTransmissao: parseExcelDate(firstValue(row['Data de Transmissão do Perdcomp'], row['Data Transmissão'])),
+      tipoDocumento: toStringValue(firstValue(row['Tipo do Documento'], row['Tipo de Documento'])),
+      situacao: toStringValue(row['Situação'], 'Pendente'),
+      indicadorCredito: toStringValue(row['Indicador de Crédito']),
+      tipoCredito: toStringValue(row['Tipo de Crédito']),
+      detentorCredito: toStringValue(row['Detentor do Crédito']),
+      periodoApuracaoCredito: formatPeriodoExcel(firstValue(row['Período de Apuração do Crédito'], row['Período de Apuração'])),
+      valorTotalCreditoDetalhado: toNumberValue(firstValue(row['Valor Total do Crédito Detalhado'], row['Valor Total do Crédito'])),
+      valorTotalCreditoDetalhadoOriginal: toNumberValue(firstValue(row['Valor Total do Crédito Detalhado'], row['Valor Total do Crédito'])),
+      valorCreditoDataTransmissao: toNumberValue(firstValue(row['Valor do Crédito na Data de Transmissão'], row['Valor do Crédito na Data da Transmissão'])),
+      valorUtilizadoPerdcomp: toNumberValue(firstValue(row['Valor Utilizado no Perdcomp'], row['Valor Utilizado na Perdcomp'])),
+      valorUtilizadoPerdcompOriginal: toNumberValue(firstValue(row['Valor Utilizado no Perdcomp'], row['Valor Utilizado na Perdcomp'])),
       idCadeiaRelacional: idCadeia,
-      numeroRetificador: row['Retificado ou Cancelado Por'] || undefined,
-      numeroDcompDetalhamento: row['Perdcomp Anterior com Detalhamento de Crédito'] || undefined,
+      numeroRetificador: toOptionalString(firstValue(row['Retificado ou Cancelado Por'], row['Número Retificador'])),
+      numeroDcompDetalhamento: toOptionalString(firstValue(row['Perdcomp Anterior com Detalhamento de Crédito'], row['Detalhado Perdcomp Anterior'])),
       debitos: debitosPorDcomp[numeroDcomp] || [],
     };
 
@@ -220,5 +293,5 @@ export const parseExcelFile = (data: ArrayBuffer): CadeiaRelacional[] => {
     return cadeia;
   });
 
-  return cadeias;
+  return { cadeias, empresa };
 };

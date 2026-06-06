@@ -5,33 +5,56 @@ import type { CadeiaRelacional, DCOMP } from '../models/types';
 import { isVigente, isBloqueado, isPedidoCancelamento } from '../utils/statusHelper';
 import { useStore } from '../store';
 import { ModalEdicao } from './ModalEdicao';
+import { ModalHipotetica } from './ModalHipotetica';
+import { CascataKpis } from './CascataKpis';
+import { CascataFilters } from './CascataFilters';
+import { Settings, Pencil, Trash } from 'lucide-react';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.abs(val));
 
 export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia }) => {
   const formatDate = (date: Date) => format(date, 'dd/MM/yyyy', { locale: ptBR });
   const [dcompEditando, setDcompEditando] = useState<DCOMP | null>(null);
+  const [modalHipoteticaAberta, setModalHipoteticaAberta] = useState(false);
   const [editandoRaiz, setEditandoRaiz] = useState(false);
   const [valorRaizEdit, setValorRaizEdit] = useState('');
   
   const editarCreditoOriginal = useStore(state => state.editarCreditoOriginal);
+  const salvarSimulacaoCadeia = useStore(state => state.salvarSimulacaoCadeia);
 
   // Calcula KPIs
   const dcompInicialVigente = cadeia.dcomps.find(d => isVigente(d.situacao, d.tipoDocumento, d.id));
   
-  // O maior valor vigente é calculado pelo CalculoService, então a primeira dcomp Vigente terá o valorTotalCreditoDetalhado
-  // Para exibir o KPI, podemos achar a primeira Vigente ou pegar o maior `valorTotalCreditoDetalhado`
-  const maiorCreditoVigente = Math.max(...cadeia.dcomps.filter(d => isVigente(d.situacao)).map(d => d.valorTotalCreditoDetalhado), 0);
-  const dcompInicial = cadeia.dcomps[0];
-  const totalCreditoOriginal = dcompInicial ? dcompInicial.valorTotalCreditoDetalhadoOriginal : 0;
-  const totalCreditoAtual = maiorCreditoVigente > 0 ? maiorCreditoVigente : (dcompInicial ? dcompInicial.valorTotalCreditoDetalhado : 0);
+  // Lógica do KPI Saldo Inicial:
+  const tipoCreditoLimpo = (cadeia.tipoCredito || '').toLowerCase();
+  const permiteMultiplosDetalhamentos = 
+    tipoCreditoLimpo.includes('pagamento indevido ou a maior esocial') ||
+    tipoCreditoLimpo.includes('contribuição previdenciária indevida ou a maior');
+
+  let totalCreditoAtual = 0;
+  let totalCreditoOriginal = 0;
+
+  if (permiteMultiplosDetalhamentos) {
+    const detalhadoresVigentes = cadeia.dcomps.filter(d => 
+      isVigente(d.situacao, d.tipoDocumento, d.id) && 
+      d.indicadorCredito !== 'Hipotético' &&
+      (!d.numeroDcompDetalhamento || d.numeroDcompDetalhamento === d.id)
+    );
+    totalCreditoAtual = detalhadoresVigentes.reduce((acc, d) => acc + d.valorTotalCreditoDetalhado, 0);
+    totalCreditoOriginal = detalhadoresVigentes.reduce((acc, d) => acc + (d.valorTotalCreditoDetalhadoOriginal || d.valorTotalCreditoDetalhado), 0);
+  } else {
+    const maiorCreditoVigente = Math.max(...cadeia.dcomps.filter(d => isVigente(d.situacao, d.tipoDocumento, d.id)).map(d => d.valorTotalCreditoDetalhado), 0);
+    const dcompInicial = cadeia.dcomps[0];
+    totalCreditoOriginal = dcompInicial ? (dcompInicial.valorTotalCreditoDetalhadoOriginal || dcompInicial.valorTotalCreditoDetalhado) : 0;
+    totalCreditoAtual = maiorCreditoVigente > 0 ? maiorCreditoVigente : (dcompInicial ? dcompInicial.valorTotalCreditoDetalhado : 0);
+  }
   
   const dcompFinal = cadeia.dcomps[cadeia.dcomps.length - 1];
   const saldoFinal = dcompFinal ? (dcompFinal.saldoCreditoOriginalCalculado || 0) : 0;
 
   // Calcula o valor total das reduções de débitos realizadas pelo usuário
   const variacaoDebitos = cadeia.dcomps
-    .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id))
+    .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id) && d.indicadorCredito !== 'Hipotético')
     .reduce((acc, d) => {
       const original = d.valorUtilizadoPerdcompOriginal || d.valorUtilizadoPerdcomp;
       return acc + (original - d.valorUtilizadoPerdcomp);
@@ -39,7 +62,7 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
 
   // Calcula o delta do valor (atualizado com Selic) dos débitos
   const debitosReduzidos = cadeia.dcomps
-    .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id))
+    .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id) && d.indicadorCredito !== 'Hipotético')
     .reduce((acc, d) => {
       let diff = 0;
       d.debitos.forEach(deb => {
@@ -48,6 +71,11 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       });
       return acc + diff;
     }, 0);
+
+  // Calcula a soma do Crédito Original Usado (apenas nas Vigentes)
+  const totalCreditoUtilizado = cadeia.dcomps
+    .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id))
+    .reduce((acc, d) => acc + d.valorUtilizadoPerdcomp, 0);
 
   const docsARetificar = cadeia.dcomps.filter(d => d.statusCascata === 'RETIFICAR').length;
   const docsRetificadosUsuario = cadeia.dcomps.filter(d => d.isManuallyEdited).length;
@@ -60,11 +88,38 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
     setEditandoRaiz(false);
   };
 
+  const handleSalvarSimulacao = () => {
+    const hasManualEdits = cadeia.dcomps.some(d => d.isManuallyEdited);
+    
+    if (!hasManualEdits) {
+      const confirmSave = window.confirm('Você não fez edições manuais. Deseja salvar a simulação apenas com as edições colaterais identificadas ou cancelar?');
+      if (!confirmSave) return;
+    }
+
+    const kpis = {
+      saldoOriginalTotal: totalCreditoOriginal,
+      saldoAtualizadoTotal: totalCreditoAtual,
+      economiaProjetada: debitosReduzidos,
+      lastroOriginalDisponibilizado: variacaoDebitos,
+      saldoOriginalRestanteAntigo: dcompFinal ? (dcompFinal.saldoCreditoOriginalAnterior || 0) : 0,
+      saldoOriginalRestanteNovo: saldoFinal
+    };
+
+    salvarSimulacaoCadeia(cadeia.id, kpis);
+    alert('Simulação da cadeia salva com sucesso!');
+  };
+
   const [filtroBusca, setFiltroBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('ALL'); // ALL, OK, RETIFICAR, IMPEDIDO
+  const [apenasDetalhadores, setApenasDetalhadores] = useState(false);
 
   const dcompsFiltradas = useMemo(() => {
     return cadeia.dcomps.filter(d => {
+      // Filtro checkbox: Apenas Detalhadores
+      if (apenasDetalhadores) {
+        const isDetalhador = d.indicadorCredito !== 'Hipotético' && (!d.numeroDcompDetalhamento || d.numeroDcompDetalhamento === d.id);
+        if (!isDetalhador) return false;
+      }
       // Filtro de busca (por número da dcomp)
       if (filtroBusca && !d.id.includes(filtroBusca)) return false;
       
@@ -72,93 +127,60 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       if (filtroStatus !== 'ALL') {
         const vigente = isVigente(d.situacao, d.tipoDocumento, d.id);
         const bloqueado = isBloqueado(d.situacao, d.tipoDocumento, d.id);
-        const aRetificar = d.statusCascata === 'RETIFICAR';
+        const aRetificar = d.statusCascata === 'RETIFICAR' || d.statusCascata === 'EDITADO_E_RETIFICAR';
         
         if (filtroStatus === 'VIGENTES_EDITAVEIS') {
           const isVigenteEditavel = vigente && !bloqueado;
+          // Mostra se for vigente e editável, OU se for a retificar (pois precisamos ver os erros)
           if (!isVigenteEditavel && !aRetificar) return false;
         }
         
-        if (filtroStatus === 'IMPEDIDO' && vigente) return false;
-        if (filtroStatus === 'OK' && d.statusCascata !== 'OK') return false;
+        if (filtroStatus === 'IMPEDIDO') {
+          // Impedidos de retificação: não vigentes, ou bloqueados
+          if (vigente && !bloqueado) return false;
+        }
+
+        if (filtroStatus === 'OK') {
+          // Mostra OK e EDITADO (apenas itens vigentes e não bloqueados)
+          if (!vigente || bloqueado) return false;
+          if (d.statusCascata !== 'OK' && d.statusCascata !== 'EDITADO') return false;
+        }
         if (filtroStatus === 'RETIFICAR' && !aRetificar) return false;
       }
       return true;
     });
-  }, [cadeia.dcomps, filtroBusca, filtroStatus]);
+  }, [cadeia.dcomps, filtroBusca, filtroStatus, apenasDetalhadores]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div>
         <h2 style={{ marginBottom: '1rem' }}>Simulador de Cascata - {cadeia.tipoCredito}</h2>
         
-        {/* KPI Panel */}
-        <div className="kpi-panel" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-            <div className="label-uppercase">Saldo Inicial (Raiz)</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: totalCreditoAtual !== totalCreditoOriginal ? 'var(--color-primary)' : 'inherit' }}>
-              {formatCurrency(totalCreditoAtual)}
-            </div>
-          </div>
-          
-          <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-            <div className="label-uppercase">Lastro Original Disponibilizado</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-              {formatCurrency(variacaoDebitos)}
-            </div>
-          </div>
-
-          <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-            <div className="label-uppercase">Valor Total dos Débitos Reduzidos</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-              {formatCurrency(debitosReduzidos)}
-            </div>
-          </div>
-
-          <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-            <div className="label-uppercase" title="Reflete o novo Saldo de Crédito Original após as edições">Saldo Original Restante</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-primary)' }}>{formatCurrency(saldoFinal)}</div>
-          </div>
-
-          <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-            <div className="label-uppercase">Retificadas pelo Usuário</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: docsRetificadosUsuario > 0 ? 'var(--color-success)' : 'var(--color-text-main)' }}>
-              {docsRetificadosUsuario} Docs
-            </div>
-          </div>
-
-          <div className="card-glass" style={{ flex: 1, minWidth: '150px', padding: '1.25rem 1.5rem' }}>
-            <div className="label-uppercase">A Retificar (Erro Saldo)</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: docsARetificar > 0 ? 'var(--color-warning)' : 'var(--color-text-main)' }}>
-              {docsARetificar} Docs
-            </div>
-          </div>
-        </div>
+        {/* KPI Panel Extracted */}
+        <CascataKpis 
+          totalCreditoAtual={totalCreditoAtual}
+          totalCreditoOriginal={totalCreditoOriginal}
+          totalCreditoUtilizado={totalCreditoUtilizado}
+          variacaoDebitos={variacaoDebitos}
+          debitosReduzidos={debitosReduzidos}
+          saldoFinal={saldoFinal}
+          docsRetificadosUsuario={docsRetificadosUsuario}
+          docsARetificar={docsARetificar}
+        />
       </div>
 
+      {/* Âncora invisível para o Tour Guiado */}
+      <div id="tour-target-table" style={{ width: '100%', height: '5px', background: 'transparent' }} />
       <div className="table-floating-wrapper">
-        <div style={{ paddingBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
-          <input 
-            type="text" 
-            placeholder="Buscar PER/DCOMP..." 
-            className="input-field" 
-            style={{ width: '250px' }}
-            value={filtroBusca}
-            onChange={e => setFiltroBusca(e.target.value)}
-          />
-          <select 
-            className="input-field" 
-            style={{ width: '250px' }}
-            value={filtroStatus}
-            onChange={e => setFiltroStatus(e.target.value)}
-          >
-            <option value="ALL">Todos os Status</option>
-            <option value="VIGENTES_EDITAVEIS">Apenas Vigentes e Editáveis</option>
-            <option value="OK">OK</option>
-            <option value="RETIFICAR">A Retificar</option>
-            <option value="IMPEDIDO">Impedido</option>
-          </select>
-        </div>
+        <CascataFilters 
+          filtroBusca={filtroBusca}
+          setFiltroBusca={setFiltroBusca}
+          filtroStatus={filtroStatus}
+          setFiltroStatus={setFiltroStatus}
+          apenasDetalhadores={apenasDetalhadores}
+          setApenasDetalhadores={setApenasDetalhadores}
+          onSalvarSimulacao={handleSalvarSimulacao}
+        />
         <div style={{ overflowX: 'auto' }}>
           <table className="table-floating" style={{ width: '100%', tableLayout: 'auto' }}>
             <thead>
@@ -172,7 +194,7 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                 <th>Débitos (Atualizado)</th>
                 <th>Crédito Orig. Usado</th>
                 <th>Saldo Próx. DCOMP</th>
-                <th style={{ width: '150px' }}>Ações</th>
+                <th style={{ width: '150px' }}>AÇÕES</th>
               </tr>
             </thead>
             <tbody>
@@ -206,11 +228,11 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                       <td>
                         {dcomp.statusCascata === 'EDITADO_E_RETIFICAR' ? (
                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'center' }}>
-                             <span className="status-led status-danger" data-tooltip={getTooltip('RETIFICAR', bloqueado, vigente)}>RETIFICAR</span>
+                             <span className="status-led status-danger" data-tooltip={getTooltip('RETIFICAR', bloqueado, vigente)}>A RETIFICAR</span>
                              <span className="status-led status-success" data-tooltip={getTooltip('EDITADO', bloqueado, vigente)}>EDITADO</span>
                            </div>
                         ) : dcomp.statusCascata === 'RETIFICAR' ? (
-                           <span className="status-led status-danger" data-tooltip={getTooltip('RETIFICAR', bloqueado, vigente)}>RETIFICAR</span>
+                           <span className="status-led status-danger" data-tooltip={getTooltip('RETIFICAR', bloqueado, vigente)}>A RETIFICAR</span>
                         ) : dcomp.statusCascata === 'IMPACTADO_BLOQUEADO' ? (
                            <span className="status-led status-danger" data-tooltip="Falta crédito, mas a declaração está Bloqueada para retificação na RFB.">BLOQUEADO</span>
                         ) : dcomp.statusCascata === 'EDITADO' ? (
@@ -227,8 +249,17 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                       <td>{formatDate(new Date(dcomp.dataTransmissaoOriginal))}</td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span className="font-mono">{dcomp.id}</span>
-                          <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span className="font-mono">{dcomp.id}</span>
+                            {dcomp.indicadorCredito !== 'Hipotético' && (
+                              (!dcomp.numeroDcompDetalhamento || dcomp.numeroDcompDetalhamento === dcomp.id) ? (
+                                <span className="status-led status-success" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}>DETALHADOR</span>
+                              ) : (
+                                <span className="status-led status-muted" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}>CONSUMIDOR</span>
+                              )
+                            )}
+                          </div>
+                          <span className="text-muted" style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
                             {isPedidoCancelamento(dcomp.id, dcomp.tipoDocumento) ? 'Pedido de Cancelamento' : (dcomp.indicadorCredito === '1' ? 'Original' : 'Retificador')}
                           </span>
                           
@@ -282,6 +313,15 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                             </div>
                             <div style={{ fontWeight: 600, color: 'var(--color-warning)' }}>
                               NOVO: {formatCurrency(dcomp.divergenciaDetalhes.calculado)}
+                            </div>
+                          </div>
+                        ) : dcomp.indicadorCredito === 'Hipotético' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <div style={{ textDecoration: 'line-through', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                              {formatCurrency(0)}
+                            </div>
+                            <div style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+                              NOVO: {formatCurrency(creditoDataTransmissao)}
                             </div>
                           </div>
                         ) : (
@@ -356,12 +396,13 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                               </div>
                             ) : (
                               <button 
-                                className="btn btn-ghost" 
-                                style={{ padding: '0.25rem', fontSize: '0.75rem', color: 'var(--color-primary)' }}
+                                className="btn btn-outline" 
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                                 onClick={() => { setValorRaizEdit(totalCreditoAtual.toString()); setEditandoRaiz(true); }}
                                 disabled={!vigente || bloqueado}
+                                title="Editar Saldo Original"
                               >
-                                Editar Saldo
+                                <Settings size={14} /> Saldo
                               </button>
                             )
                           )}
@@ -371,14 +412,31 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                           ) : !vigente ? (
                             <span className="text-muted" style={{ fontSize: '0.75rem', textAlign: 'center', padding: '0.25rem' }}>Não vigente</span>
                           ) : (
-                            <button 
-                              className="btn btn-ghost btn-edit-debito" 
-                              style={{ padding: '0.25rem', fontSize: '0.75rem', color: 'var(--color-primary)' }}
-                              onClick={() => setDcompEditando(dcomp)}
-                              title="Editar Débitos"
-                            >
-                              Editar Débitos
-                            </button>
+                            <>
+                              <button 
+                                className="btn btn-outline btn-edit-debito" 
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                onClick={() => setDcompEditando(dcomp)}
+                                title="Editar Débitos"
+                              >
+                                <Pencil size={14} /> Débitos
+                              </button>
+                              
+                              {dcomp.indicadorCredito === 'Hipotético' && (
+                                <button 
+                                  className="btn btn-ghost text-danger" 
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: 'var(--color-danger)' }}
+                                  onClick={() => {
+                                    if(window.confirm('Excluir esta PER/DCOMP Hipotética da simulação?')) {
+                                      useStore.getState().removerDcompHipotetica(cadeia.id, dcomp.id);
+                                    }
+                                  }}
+                                  title="Excluir Hipotética"
+                                >
+                                  <Trash size={14} /> Excluir
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -389,32 +447,33 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
             </tbody>
           </table>
         </div>
+      </div>
 
-        {/* Botão de adicionar Hipotética */}
-        <div style={{ padding: '1rem', display: 'flex', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.02)' }}>
-          <button 
-            className="btn btn-ghost" 
-            style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--color-primary)' }}
-            onClick={() => {
-              const val = prompt('Digite o valor principal (R$) a abater nesta nova declaração simulada:');
-              if (val) {
-                const num = Number(val);
-                if (!isNaN(num) && num > 0) {
-                  // Pega a data da última dcomp e adiciona 1 mês
-                  const ultimaData = new Date(dcompFinal ? dcompFinal.dataTransmissaoOriginal : Date.now());
-                  ultimaData.setMonth(ultimaData.getMonth() + 1);
-                  useStore.getState().adicionarDcompHipotetica(cadeia.id, num, ultimaData);
-                }
-              }
-            }}
-          >
-            <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>+</span> Simular PER/DCOMP Hipotética
-          </button>
-        </div>
+      {/* Âncora invisível para o Tour Guiado */}
+      <div id="tour-target-hipotetica" style={{ width: '100%', height: '5px', background: 'transparent' }} />
+      {/* Botão de adicionar Hipotética */}
+      <div style={{ padding: '1rem', display: 'flex', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+        <button 
+          className="btn btn-ghost tour-hipotetica" 
+          style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--color-primary)' }}
+          onClick={() => setModalHipoteticaAberta(true)}
+        >
+          <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>+</span> Simular PER/DCOMP Hipotética
+        </button>
       </div>
 
       {dcompEditando && (
         <ModalEdicao dcomp={dcompEditando} onClose={() => setDcompEditando(null)} />
+      )}
+
+      {modalHipoteticaAberta && (
+        <ModalHipotetica 
+          onClose={() => setModalHipoteticaAberta(false)}
+          onConfirm={(debitosSimulados) => {
+            const dataHipotetica = new Date();
+            useStore.getState().adicionarDcompHipotetica(cadeia.id, debitosSimulados, dataHipotetica);
+          }}
+        />
       )}
     </div>
   );

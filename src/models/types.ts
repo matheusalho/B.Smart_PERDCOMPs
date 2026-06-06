@@ -78,16 +78,45 @@ export interface CadeiaRelacional {
   dcomps: DCOMP[]; // Todas as DCOMPs ordenadas por dataTransmissaoOriginal
 }
 
+export interface KpiSnapshot {
+  saldoOriginalTotal: number;
+  saldoAtualizadoTotal: number;
+  economiaProjetada: number;
+  lastroOriginalDisponibilizado: number;
+  saldoOriginalRestanteAntigo: number;
+  saldoOriginalRestanteNovo: number;
+}
+
+export interface SimulacaoSalva {
+  id: string;
+  dataSalvamento: Date;
+  cadeiaId: string;
+  numeroDcompInicial: string;
+  tipoCredito: string;
+  kpis: KpiSnapshot;
+  dcomps: DCOMP[];
+}
+
+export interface Empresa {
+  cnpj: string;
+  razaoSocial: string;
+}
+
 export interface SimulacaoState {
+  empresa: Empresa | null;
   cadeias: Record<string, CadeiaRelacional>; // Map de cadeias por ID
   cadeiaSelecionadaId: string | null;
+  simulacoesSalvas: SimulacaoSalva[];
   
   // Actions
-  importarDados: (cadeias: CadeiaRelacional[]) => void;
+  importarDados: (cadeias: CadeiaRelacional[], empresa: Empresa, isRecalculated?: boolean) => void;
   selecionarCadeia: (id: string) => void;
   atualizarDebito: (dcompId: string, debitoId: string, novoValorPrincipal: number, novoValorMulta: number, novoValorJuros: number) => void;
   editarCreditoOriginal: (cadeiaId: string, novoValor: number) => void;
-  adicionarDcompHipotetica: (cadeiaId: string, valorDesejado: number, dataTransmissao: Date) => void;
+  adicionarDcompHipotetica: (cadeiaId: string, debitosSimulados: Array<{codigoReceita: string, periodoApuracao: string, dataVencimento: string, principal: number, multa: number, juros: number}>, dataTransmissao: Date) => void;
+  removerDcompHipotetica: (cadeiaId: string, dcompId: string) => void;
   recalcularCadeia: (cadeiaId: string) => void;
   limparDados: () => void;
+  salvarSimulacaoCadeia: (cadeiaId: string, kpis: KpiSnapshot) => void;
+  limparSimulacoesSalvas: () => void;
 }

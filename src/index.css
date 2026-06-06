@@ -347,3 +347,33 @@ h3 { font-size: 1.5rem; }
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-glow);
 }
+
+/* Dropzone (Área de Upload) */
+.dropzone {
+  background: var(--color-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 2px dashed var(--color-glass-border);
+  border-radius: var(--border-radius-lg);
+  padding: 4rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  box-shadow: var(--shadow-glass);
+}
+
+.dropzone:hover, .dropzone.active {
+  border-color: var(--color-primary);
+  background: var(--color-glass-hover);
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-4px);
+}
+
+.dropzone .icon-container {
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.dropzone:hover .icon-container, .dropzone.active .icon-container {
+  color: var(--color-primary);
+}

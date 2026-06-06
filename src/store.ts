@@ -1,21 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { SimulacaoState, CadeiaRelacional, DCOMP, DebitoOficial } from './models/types';
+import { format } from 'date-fns';
+import type { SimulacaoState, CadeiaRelacional, DCOMP, DebitoOficial, Empresa } from './models/types';
 import { recalcularCadeia } from './services/CalculoService';
 
 export const useStore = create<SimulacaoState>()(
   persist(
     (set, get) => ({
+      empresa: null,
       cadeias: {},
       cadeiaSelecionadaId: null,
+      simulacoesSalvas: [],
 
-      importarDados: (cadeiasList: CadeiaRelacional[]) => {
+      importarDados: (cadeiasList: CadeiaRelacional[], empresa: Empresa, isRecalculated: boolean = false) => {
     const cadeiasMap: Record<string, CadeiaRelacional> = {};
     cadeiasList.forEach(c => {
-      // Recalcula inicial pra setar os saldos e flag de divergência da importação pura
-      cadeiasMap[c.id] = recalcularCadeia(c);
+      // Se vier do worker, já está recalculada, o que salva bloqueio da UI
+      cadeiasMap[c.id] = isRecalculated ? c : recalcularCadeia(c);
     });
-    set({ cadeias: cadeiasMap });
+    set({ cadeias: cadeiasMap, empresa });
   },
 
   selecionarCadeia: (id: string) => {
@@ -23,7 +26,32 @@ export const useStore = create<SimulacaoState>()(
   },
 
   limparDados: () => {
-    set({ cadeias: {}, cadeiaSelecionadaId: null });
+    set({ cadeias: {}, cadeiaSelecionadaId: null, simulacoesSalvas: [], empresa: null });
+  },
+
+  limparSimulacoesSalvas: () => {
+    set({ simulacoesSalvas: [] });
+  },
+
+  salvarSimulacaoCadeia: (cadeiaId: string, kpis) => {
+    const { cadeias, simulacoesSalvas } = get();
+    const cadeia = cadeias[cadeiaId];
+    if (!cadeia) return;
+
+    const novaSimulacao = {
+      id: `SIMULACAO-${Date.now()}`,
+      dataSalvamento: new Date(),
+      cadeiaId: cadeia.id,
+      numeroDcompInicial: cadeia.numeroDcompInicial,
+      tipoCredito: cadeia.tipoCredito,
+      kpis,
+      // Fazendo deep copy simplificada para snapshot das dcomps
+      dcomps: JSON.parse(JSON.stringify(cadeia.dcomps))
+    };
+
+    set({
+      simulacoesSalvas: [...simulacoesSalvas, novaSimulacao]
+    });
   },
 
   atualizarDebito: (dcompId: string, debitoId: string, novoValorPrincipal: number, novoValorMulta: number, novoValorJuros: number) => {
@@ -87,49 +115,84 @@ export const useStore = create<SimulacaoState>()(
     actionRecalcular(cadeiaId);
   },
 
-  adicionarDcompHipotetica: (cadeiaId: string, valorDesejado: number, dataTransmissao: Date) => {
+  adicionarDcompHipotetica: (cadeiaId, debitosSimulados, dataTransmissao) => {
     const { cadeias, recalcularCadeia: actionRecalcular } = get();
     const cadeia = cadeias[cadeiaId];
     if (!cadeia) return;
 
+    // Converte os débitos simulados para o formato DebitoOficial
+    let valorDesejadoTotal = 0;
+    const debitosOficiais: DebitoOficial[] = debitosSimulados.map((d, index) => {
+      const total = d.principal + d.multa + d.juros;
+      valorDesejadoTotal += total;
+      
+      return {
+        id: `deb_simul_${Date.now()}_${index}`,
+        codigoReceita: d.codigoReceita || 'SIMUL',
+        periodoApuracao: d.periodoApuracao || 'SIMULADO',
+        dataVencimento: d.dataVencimento || '',
+        valorPrincipal: d.principal,
+        valorMulta: d.multa,
+        valorJuros: d.juros,
+        valorTotal: total,
+        valorPrincipalOriginal: d.principal,
+        valorMultaOriginal: d.multa,
+        valorJurosOriginal: d.juros,
+        valorTotalOriginal: total
+      };
+    });
+
+    const qtdHipoteticas = cadeia.dcomps.filter(d => d.indicadorCredito === 'Hipotético').length;
+    const nextX = qtdHipoteticas + 1;
+    
+    // dataTransmissao é um Date
+    const dateStr = format(dataTransmissao, 'ddMMyyyy');
+    
+    const partesRaiz = cadeia.numeroDcompInicial.split('.');
+    const sufixoRaiz = partesRaiz.length > 3 ? partesRaiz.slice(3).join('.') : 'SIMULACAO';
+    
+    const novaId = `Hipotética.${nextX}.${dateStr}.${sufixoRaiz}`;
+
     const novaDcomp: DCOMP = {
-      id: `SIMULACAO-${Date.now()}`,
+      id: novaId,
       dataTransmissaoOriginal: dataTransmissao,
       dataTransmissao: dataTransmissao,
       tipoDocumento: 'Decl. Compensação Hipotética',
-      situacao: 'Pendente', // Não impede
+      situacao: 'Pendente',
       indicadorCredito: 'Hipotético',
       tipoCredito: cadeia.tipoCredito,
       detentorCredito: 'Simulado',
       periodoApuracaoCredito: cadeia.periodoApuracao,
       valorTotalCreditoDetalhado: 0,
       valorTotalCreditoDetalhadoOriginal: 0,
-      valorCreditoDataTransmissao: 0, // Será calculado
-      valorUtilizadoPerdcomp: valorDesejado,
-      valorUtilizadoPerdcompOriginal: valorDesejado,
+      valorCreditoDataTransmissao: 0,
+      valorUtilizadoPerdcomp: valorDesejadoTotal,
+      valorUtilizadoPerdcompOriginal: valorDesejadoTotal,
       idCadeiaRelacional: cadeiaId,
-      debitos: [
-        {
-          id: `deb_simul_${Date.now()}`,
-          codigoReceita: 'SIMUL',
-          periodoApuracao: 'SIMULADO',
-          dataVencimento: '',
-          valorPrincipal: valorDesejado,
-          valorMulta: 0,
-          valorJuros: 0,
-          valorTotal: valorDesejado,
-          valorPrincipalOriginal: valorDesejado,
-          valorMultaOriginal: 0,
-          valorJurosOriginal: 0,
-          valorTotalOriginal: valorDesejado
-        }
-      ]
+      debitos: debitosOficiais
     };
 
     set({
       cadeias: {
         ...cadeias,
         [cadeiaId]: { ...cadeia, dcomps: [...cadeia.dcomps, novaDcomp] }
+      }
+    });
+
+    actionRecalcular(cadeiaId);
+  },
+
+  removerDcompHipotetica: (cadeiaId, dcompId) => {
+    const { cadeias, recalcularCadeia: actionRecalcular } = get();
+    const cadeia = cadeias[cadeiaId];
+    if (!cadeia) return;
+
+    const novaListaDcomps = cadeia.dcomps.filter(d => d.id !== dcompId);
+
+    set({
+      cadeias: {
+        ...cadeias,
+        [cadeiaId]: { ...cadeia, dcomps: novaListaDcomps }
       }
     });
 

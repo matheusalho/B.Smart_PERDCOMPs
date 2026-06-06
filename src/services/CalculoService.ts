@@ -1,4 +1,4 @@
-import type { CadeiaRelacional, DCOMP } from '../models/types';
+import type { CadeiaRelacional } from '../models/types';
 import selicData from '../selic.json';
 import { isVigente, isBloqueado } from '../utils/statusHelper';
 
@@ -94,22 +94,51 @@ export const recalcularCadeia = (cadeia: CadeiaRelacional): CadeiaRelacional => 
   // Não podemos reordenar puramente por data aqui, senão quebramos os blocos de retificação
   const dcompsOrdenadas = [...cadeia.dcomps];
   
-  let primeiraDcompVigente = dcompsOrdenadas.find(d => isVigente(d.situacao));
-  let valorCreditoDetalhadoRaiz = primeiraDcompVigente ? primeiraDcompVigente.valorTotalCreditoDetalhado : 0;
+  // A DCOMP Raiz Histórica (Apenas para fallback e replicação em tipos restritos)
+  const primeiraDcompVigente = dcompsOrdenadas.find(d => isVigente(d.situacao, d.tipoDocumento, d.id));
+  const valorCreditoDetalhadoRaiz = primeiraDcompVigente ? primeiraDcompVigente.valorTotalCreditoDetalhado : 0;
 
-  // O Saldo Inicial a ser exibido na KPI deverá ser o maior valor que existir na 
-  // coluna "Valor Total do Crédito Detalhado" dentre as PER/DCOMPs Vigentes da cadeia.
-  let maiorCreditoVigente = 0;
+  // LÓGICA REVISADA: "Soma dos Detalhadores (Pool Global)"
+  // Uma DCOMP é Detalhadora se sua coluna `numeroDcompDetalhamento` estiver vazia ou for igual ao seu próprio ID
+  // e se ela for Vigente (a coluna "Retificado ou Cancelado Por" já é coberta pelo isVigente).
+  let saldoOriginalDisponivel = 0;
+  
   for (const dcomp of dcompsOrdenadas) {
-    if (isVigente(dcomp.situacao)) {
-      if (dcomp.valorTotalCreditoDetalhado > maiorCreditoVigente) {
-        maiorCreditoVigente = dcomp.valorTotalCreditoDetalhado;
+    if (isVigente(dcomp.situacao, dcomp.tipoDocumento, dcomp.id)) {
+      const isDetalhador = !dcomp.numeroDcompDetalhamento || dcomp.numeroDcompDetalhamento === dcomp.id;
+      if (isDetalhador) {
+        // Usamos o valorOriginal se existir, ou o atual, para compor o Pool
+        saldoOriginalDisponivel += (dcomp.valorTotalCreditoDetalhadoOriginal || dcomp.valorTotalCreditoDetalhado);
       }
     }
   }
 
-  // Replica o valor do Crédito Detalhado da 1ª Vigente para as subsequentes
-  if (primeiraDcompVigente) {
+  // Fallback de segurança: se não houver nenhum "Detalhador" Vigente na cadeia,
+  // ou se o saldo computado for 0 (anomalia), adotamos o maior crédito vigente ou o primeiro.
+  if (saldoOriginalDisponivel === 0) {
+    let maiorCreditoVigente = 0;
+    for (const dcomp of dcompsOrdenadas) {
+      if (isVigente(dcomp.situacao, dcomp.tipoDocumento, dcomp.id)) {
+        if (dcomp.valorTotalCreditoDetalhado > maiorCreditoVigente) {
+          maiorCreditoVigente = dcomp.valorTotalCreditoDetalhado;
+        }
+      }
+    }
+    saldoOriginalDisponivel = maiorCreditoVigente > 0 
+      ? maiorCreditoVigente 
+      : (dcompsOrdenadas.length > 0 ? dcompsOrdenadas[0].valorTotalCreditoDetalhado : 0);
+  }
+
+  // REPLICAÇÃO DO VALOR DO CRÉDITO PARA A UI (FALLBACK RESTRITO)
+  // Verificamos se o tipo de crédito permite múltiplos detalhamentos independentes
+  const tipoCreditoLimpo = (cadeia.tipoCredito || '').toLowerCase();
+  const permiteMultiplosDetalhamentos = 
+    tipoCreditoLimpo.includes('pagamento indevido ou a maior esocial') ||
+    tipoCreditoLimpo.includes('contribuição previdenciária indevida ou a maior');
+
+  // Se NÃO permite múltiplos detalhamentos (ex: Saldo Negativo), replicamos o valor da Raiz 
+  // para todas as DCOMPs subsequentes a fim de evitar distorções visuais.
+  if (!permiteMultiplosDetalhamentos && primeiraDcompVigente) {
     let passedPrimeira = false;
     for (const dcomp of dcompsOrdenadas) {
       if (dcomp.id === primeiraDcompVigente.id) {
@@ -119,11 +148,6 @@ export const recalcularCadeia = (cadeia: CadeiaRelacional): CadeiaRelacional => 
       }
     }
   }
-
-  // Se não houver nenhum vigente ou valor for 0, cai num fallback básico do primeiro
-  let saldoOriginalDisponivel = maiorCreditoVigente > 0 
-    ? maiorCreditoVigente 
-    : (dcompsOrdenadas.length > 0 ? dcompsOrdenadas[0].valorTotalCreditoDetalhado : 0);
 
   // Também manteremos um tracking do saldo estritamente histórico (sem nossas simulações)
   let saldoAntigoDisponivel = saldoOriginalDisponivel;
@@ -135,7 +159,32 @@ export const recalcularCadeia = (cadeia: CadeiaRelacional): CadeiaRelacional => 
     // Calcula o total dos débitos informados (Valor Atualizado nesta DCOMP real)
     const valorUtilizadoReal = dcomp.debitos.reduce((acc, debito) => acc + debito.valorTotal, 0);
     
-    if (dcomp.isManuallyEdited) {
+    if (dcomp.indicadorCredito === 'Hipotético') {
+      const lastRealDcomp = dcompsOrdenadas.slice().reverse().find(d => d.indicadorCredito !== 'Hipotético');
+      let selicMultiplier = 1;
+      
+      if (lastRealDcomp) {
+        // O Fator Selic da última DCOMP é a proporção entre os Débitos Atualizados e o Crédito Original Consumido
+        const totalDebitosReal = lastRealDcomp.debitos.reduce((acc, deb) => acc + deb.valorTotalOriginal, 0);
+        const originalConsumidoReal = lastRealDcomp.valorUtilizadoPerdcompOriginal;
+        
+        const mLast = (totalDebitosReal > 0 && originalConsumidoReal > 0) ? (totalDebitosReal / originalConsumidoReal) : 1;
+        
+        const dataTransmStr = lastRealDcomp.dataTransmissao;
+        const dt = new Date(dataTransmStr);
+        const anoLast = dt.getFullYear().toString();
+        const mesLast = MESES[dt.getMonth()];
+        const selicExtra = getSelicMensal(anoLast, mesLast);
+        
+        selicMultiplier = mLast + selicExtra;
+      }
+      
+      dcomp.valorUtilizadoPerdcomp = valorUtilizadoReal / selicMultiplier;
+      
+      // O Crédito na Data de Transmissão é literalmente o saldo original transferido da DCOMP anterior
+      dcomp.valorCreditoDataTransmissao = saldoOriginalDisponivel;
+      
+    } else if (dcomp.isManuallyEdited) {
       // Se o usuário editou os débitos, precisamos descobrir o novo "Crédito Original Utilizado"
       // Fator SELIC = Soma dos Débitos Originais / Crédito Original Utilizado Histórico
       const totalDebitosOriginal = dcomp.debitos.reduce((acc, debito) => acc + debito.valorTotalOriginal, 0);
@@ -171,7 +220,8 @@ export const recalcularCadeia = (cadeia: CadeiaRelacional): CadeiaRelacional => 
         
         // Se houver divergência maior que 5 centavos entre o que o Excel disse que entrava e o que nossa conta diz
         // que deveria entrar, significa que houve quebra na cadeia (sobra ou falta de crédito).
-        if (Math.abs(saldoEntradaCalculado - saldoEntradaOriginal) > 0.05) {
+        // Ignoramos a divergência para as DCOMPs Hipotéticas, pois elas não têm um saldoEntradaOriginal válido do Excel.
+        if (dcomp.indicadorCredito !== 'Hipotético' && Math.abs(saldoEntradaCalculado - saldoEntradaOriginal) > 0.05) {
            const bloqueado = isBloqueado(dcomp.situacao, dcomp.tipoDocumento, dcomp.id);
            if (bloqueado) {
               dcomp.statusCascata = 'IMPACTADO_BLOQUEADO';
