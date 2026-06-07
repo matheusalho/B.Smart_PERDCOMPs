@@ -42,7 +42,7 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 | AUD-03 | Importacao do relatorio e-CAC e linhagem | `03-ImportacaoRelatorioECACELinhagem.md` | Alta | Achado registrado | Auditar parser, normalizacao, datas, agrupamento por cadeia, retificacoes e cancelamentos. | Mudanca de coluna da RFB pode quebrar importacao; erro de linhagem altera cascata inteira; marcos de SELIC podem existir na planilha mas nao no modelo. | Planilha real contem `Data de Arrecadacao`, `Competencia do Credito`, processos e dados de PER/pagamento ainda nao mapeados. Parser preserva valores principais, mas nao carrega todos os marcos necessarios para SELIC normativa. | Ampliar contrato de importacao e modelo com metadados opcionais rastreaveis antes de implementar `SelicService`. |
 | AUD-04 | Consumo de credito original e cascata | `04-ConsumoCreditoOriginalECascata.md` | Critica | Solucao proposta | Validar como o saldo original e consumido, propagado e comparado com o saldo informado pela RFB. | Erro de abatimento pode indicar retificacao indevida ou esconder insuficiencia de credito. | Rodada de 2026-06-07 confirmou que o motor preserva campos originais principais, mas usa heuristica textual para multiplos detalhamentos, fallback silencioso de pool, replicacao de valor mutavel para UI e status `RETIFICAR` derivado de divergencia matematica. | Criar `CascataRule` por tipo de credito, registrar metodo/origem/confianca do saldo calculado e separar status tecnico de acao sugerida. |
 | AUD-05 | Valores originais e rastreabilidade | `05-ValoresOriginaisRastreabilidade.md` | Critica | Achado registrado | Garantir preservacao de `...Original`, separando valores importados, calculados e simulados. | Contaminar base original compromete prova, auditoria e relatorio. | Matriz inicial de origem/mutabilidade criada para campos atuais e campos futuros de SELIC; art. 157 deve gerar data calculada separada, nao substituir `dataTransmissaoOriginal`. | Criar tipo dedicado para metadados de importacao e resultado SELIC, mantendo campos `...Original` intactos. |
-| AUD-06 | Retificacoes, vigencia e bloqueios | `06-RetificacoesVigenciaBloqueios.md` | Alta | Em analise | Validar status da RFB, documentos vigentes, bloqueados, retificados, cancelados e impactos em cascata. | Classificacao incorreta pode permitir edicao indevida ou ignorar documento relevante. | Manual inicial confirma cancelamento irreversivel e restricoes a documento analisado/intimado; vedacoes podem exigir bloqueios consultivos adicionais. | Mapear cada situacao contra manual/ato e comportamento esperado. |
+| AUD-06 | Retificacoes, vigencia e bloqueios | `06-RetificacoesVigenciaBloqueios.md` | Alta | Solucao proposta | Validar status da RFB, documentos vigentes, bloqueados, retificados, cancelados e impactos em cascata. | Classificacao incorreta pode permitir edicao indevida, ignorar documento relevante ou consumir saldo de documento nao vigente. | Manual confirma cancelamento irreversivel e restricoes a documento analisado/intimado. Planilha real tem 10 situacoes e 3 tipos de documento; helper atual diverge em 5 linhas por falta de normalizacao (`Pedido de cancelamento deferido | Pedido Cancelamento` e `Nao admitido`). | Criar classificador unico `StatusRulesService`, com normalizacao, motivo, fonte e separacao entre vigencia, editabilidade, cancelabilidade e vedacao normativa. |
 | AUD-07 | Simulacao, edicoes manuais e DCOMP hipotetica | `07-SimulacaoEdicoesDcompHipotetica.md` | Critica | Achado registrado | Auditar os efeitos tributarios de reduzir debitos, recalcular juros/multa e criar DCOMP hipotetica. | Simulacao pode parecer normativa sem calculo SELIC totalmente validado. | Edicao manual usa fator historico; hipotetica usa aproximacao de fator SELIC da ultima DCOMP real. Manual de debitos exige separar valores informados/compensados e observar multa, juros, reducao e data de transmissao original. | Exigir rastreabilidade do metodo usado e migrar para calculo normativo quando validado. |
 | AUD-08 | Relatorios PDF/Excel e rastreabilidade | `08-RelatoriosPDFExcelRastreabilidade.md` | Alta | Nao iniciado | Garantir que relatorios mostrem original, simulado, delta, status e fonte do calculo. | Relatorio pode omitir premissas ou misturar saldo original com saldo simulado. | PDF existe; Excel esta no backlog com prazo a definir. | Criar secao de premissas, metodologia e matriz de campos exportados. |
 | AUD-09 | Casos de teste normativos e evidencias | `09-CasosTesteMatrizEvidencias.md` | Critica | Em analise | Criar matriz de testes por tipo de credito, regra e caso real. | Ajustes futuros sem teste podem quebrar regras tributarias sensiveis. | Casos normativos de SELIC ja foram especificados para tipos gerais, previdenciarios, credito judicial, PIS/Cofins e IPI; ainda nao ha automacao. | Criar casos manuais e depois automatizar fixtures representativas. |
@@ -248,6 +248,38 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
   - Divergencia por estrategia de tipo, SELIC aproximada, dado ausente ou status RFB ainda nao modelado pode virar recomendacao operacional forte sem validacao tributaria.
 - Diretriz:
   - Separar `statusCascataTecnico` de `acaoSugerida`, com causa, premissas, confianca e dados ausentes.
+
+### ACH-014 - Classificacao de status precisa de normalizacao auditavel
+
+- Objeto relacionado: AUD-04, AUD-06, AUD-08
+- Criticidade: Alta
+- Evidencia normativa:
+  - `orientacoes-iniciais-portal-e-cac-e-per_dcomp_web.md`, linhas 113 a 121.
+- Evidencia tecnica:
+  - `src/utils/statusHelper.ts`, linhas 1 a 47.
+  - `Sheets/relatorio.xlsx`, aba `Processamento PERDCOMP`.
+- Regra/evidencia confirmada:
+  - Pedido de cancelamento e irreversivel e nao deve ser tratado como documento ativo de consumo.
+  - A planilha real contem variacoes de grafia/tipo que o helper atual nao captura em 5 linhas.
+- Risco:
+  - Documento nao vigente pode ser tratado como vigente e participar de cascata, KPI, UI ou relatorio.
+- Diretriz:
+  - Criar classificador normalizado com aliases e retorno de motivo/fonte.
+
+### ACH-015 - Vigencia, bloqueio e vedacao normativa sao dimensoes distintas
+
+- Objeto relacionado: AUD-02, AUD-04, AUD-06, AUD-08, AUD-10
+- Criticidade: Alta
+- Evidencia normativa:
+  - `orientacoes-iniciais-portal-e-cac-e-per_dcomp_web.md`, linhas 119 a 121.
+  - `creditos-e-debitos-que-nao-podem-ser-informados-em-declaracao-de-compensacao.md`, linhas 180 a 235.
+- Evidencia tecnica:
+  - `src/utils/statusHelper.ts`
+  - `src/components/TimelineCascata.tsx`
+- Risco:
+  - Um documento pode ser vigente para historico, bloqueado para edicao/cancelamento e ainda sujeito a alerta de vedacao por outro motivo; misturar essas dimensoes gera orientacao tributaria imprecisa.
+- Diretriz:
+  - Separar `vigenciaCascata`, `editabilidadeSimulacao`, `cancelabilidade` e `vedacaoNormativa`, com explicacao em UI/PDF.
 
 ## Fluxo de Trabalho da Auditoria
 
