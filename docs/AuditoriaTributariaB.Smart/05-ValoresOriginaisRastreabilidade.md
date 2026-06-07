@@ -32,6 +32,7 @@ Fontes tecnicas lidas:
 - `src/store.ts`
 - `src/services/CalculoService.ts`
 - Cabecalhos da planilha real `Sheets/relatorio.xlsx`.
+- Rodadas posteriores AUD-04, AUD-07, AUD-08 e AUD-11 em 2026-06-07.
 
 ### Matriz atual de origem e mutabilidade
 
@@ -76,12 +77,85 @@ Fontes tecnicas lidas:
 | `selicCalculo.dadosAusentes` | Evidencia | Lista objetiva de dados faltantes para nao calcular por aproximacao silenciosa. |
 | `selicCalculo.dataEntregaValoracao` | Calculado | Data ajustada pelo art. 157, sem alterar `dataTransmissaoOriginal`. |
 
+### Taxonomia consolidada de origem de valor
+
+Esta taxonomia deve ser usada por importacao, motor, UI, simulacao e relatorio:
+
+| Origem | Significado | Exemplos | Pode ser chamado de "Original RFB"? |
+| --- | --- | --- | --- |
+| `importado_rfb` | Valor ou data extraido do relatorio e-CAC/RFB e preservado apos parse | `valorUtilizadoPerdcompOriginal`, `valorPrincipalOriginal` de DCOMP real, `dataTransmissaoOriginal` resolvida pela linhagem | Sim, quando a linhagem/importacao estiver documentada. |
+| `calculado_motor` | Resultado produzido pelo app a partir de regra tecnica/normativa | `saldoCreditoOriginalCalculado`, `saldoCreditoOriginalAnterior`, futuro `selicCalculo.creditoOriginalUtilizadoCalculado` | Nao. |
+| `simulado_usuario` | Valor informado, editado ou criado pelo usuario | Debitos de DCOMP hipotetica, reducao manual de principal/multa/juros | Nao. |
+| `replicado_credito_raiz` | Valor copiado para fins de cascata/UI a partir da DCOMP raiz | `valorTotalCreditoDetalhado` replicado para tipos sem multiplos detalhamentos | Nao. |
+| `fallback_operacional` | Valor assumido pelo motor quando faltam dados para formar regra completa | Maior credito vigente quando pool de detalhadores fica zero | Nao. |
+| `exibido_formatado` | Valor ja calculado/importado apenas formatado para UI/PDF | moeda, data formatada, label visual | Nao altera origem material. |
+
+### Regra especifica para DCOMP hipotetica
+
+`store.ts` cria debitos simulados com `valorPrincipalOriginal`, `valorMultaOriginal`, `valorJurosOriginal` e `valorTotalOriginal` iguais aos valores digitados pelo usuario. Isso e aceitavel apenas como baseline interno da simulacao.
+
+Diretriz:
+
+- Para DCOMP real importada, `...Original` significa base RFB.
+- Para DCOMP hipotetica, `...Original` significa baseline simulado pelo usuario.
+- UI/PDF/Excel devem exibir a origem do documento antes de usar o termo "original".
+- O futuro modelo deve preferir metadado explicito, por exemplo `origemValores: importado_rfb | simulado_usuario`.
+
+### Metadados minimos de rastreabilidade por DCOMP
+
+```ts
+type AuditoriaValor = {
+  campo: string;
+  origemValor:
+    | 'importado_rfb'
+    | 'calculado_motor'
+    | 'simulado_usuario'
+    | 'replicado_credito_raiz'
+    | 'fallback_operacional'
+    | 'exibido_formatado';
+  metodo?: string;
+  fonte?: string;
+  dadosAusentes?: string[];
+  hipoteses?: string[];
+};
+```
+
+Campos prioritarios que precisam desse metadado:
+
+- `valorTotalCreditoDetalhado`;
+- `valorCreditoDataTransmissao`;
+- `valorUtilizadoPerdcomp`;
+- `saldoCreditoOriginalAnterior`;
+- `saldoCreditoOriginalCalculado`;
+- debitos editados ou simulados;
+- DCOMP hipotetica;
+- resultados futuros de SELIC.
+
 ### Diretriz de mutabilidade
 
 - Campo importado da RFB pode ser normalizado no parse, mas nao recalculado depois.
 - Campo com sufixo `...Original` so pode ser atribuido no parse inicial ou na criacao de artefato hipotetico claramente marcado como simulado.
 - Ajuste de dia nao util do art. 157 deve gerar campo calculado separado; nao deve alterar `dataTransmissaoOriginal`.
 - Quando dado normativo estiver ausente, registrar `dadosAusentes` e manter calculo como `dados_insuficientes`.
+
+## Achados da Rodada
+
+### ACH-022 - `...Original` precisa de origem documental explicita
+
+- Objeto relacionado: AUD-05, AUD-07, AUD-08, AUD-11.
+- Criticidade: Critica.
+- Evidencia tecnica:
+  - `ExcelParser.ts`, linhas 135 a 138, 163 a 175.
+  - `store.ts`, linhas 129 a 142 e 156 a 172.
+  - `ReportGeneratorService.ts`, linhas 326 a 358 e 432 a 463.
+- Descricao:
+  - Em DCOMP real, `...Original` e base importada da RFB.
+  - Em DCOMP hipotetica, `...Original` e baseline simulado criado no store.
+  - O modelo atual nao carrega `origemValor` para distinguir essas duas situacoes no relatorio.
+- Risco:
+  - O relatorio pode usar a palavra "original" para valor que nao veio da RFB.
+- Diretriz:
+  - Adicionar metadado de origem por documento/valor antes de refatorar relatorios e calculos normativos.
 
 ## Fragilidades Possiveis
 
