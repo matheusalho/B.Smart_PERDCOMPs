@@ -10,6 +10,7 @@ O objetivo e transformar o motor atual de simulacao em uma base tecnicamente aud
 - `00-MetodologiaEInventarioFontes.md`: metodologia de auditoria e inventario inicial dos manuais oficiais em `Knowledge/`.
 - `09-CasosTesteMatrizEvidencias.md`: matriz transversal para casos de teste normativos e evidencias.
 - `10-BaseGeralPERDCOMPWeb.md`: consolidado dos manuais gerais do PER/DCOMP Web, meios permitidos, vedacoes e informacao de debitos.
+- `11-DesenhoTecnicoImplementacaoNormativa.md`: desenho tecnico consolidado para futura implementacao normativa autorizada.
 
 ## Objetos de Auditoria
 
@@ -22,6 +23,7 @@ O objetivo e transformar o motor atual de simulacao em uma base tecnicamente aud
 - `07-SimulacaoEdicoesDcompHipotetica.md`
 - `08-RelatoriosPDFExcelRastreabilidade.md`
 - `10-BaseGeralPERDCOMPWeb.md`
+- `11-DesenhoTecnicoImplementacaoNormativa.md`
 
 ## Regra de Ouro
 
