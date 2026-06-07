@@ -64,6 +64,152 @@ Priorizar estes casos para transformar em fixtures automatizadas antes de qualqu
 | FX-SEL-007 | Novo cenario derivado de CT-SEL-005/014/016 | Dados insuficientes | Tipo de credito que exige data de pagamento ou PER original, mas sem esse dado no modelo | Resultado `dados_insuficientes`, com lista objetiva de campos ausentes e sem aproximacao. |
 | FX-SEL-008 | CT-SEL-017 | Data de entrega em dia nao util | DCOMP original transmitida em dia nao util e calendario/regra de dia util | Data de valoracao ajustada pelo art. 157 sem alterar `dataTransmissaoOriginal`. |
 
+### Rodada de Especificacao de Fixtures SELIC - 2026-06-07
+
+Fonte tecnica de taxa:
+
+- `Knowledge/Selic_Acumulada_ate_06.2026.pdf`, emitido em 04/06/2026, extraido por `pdftotext`.
+- A tabela se identifica como Sicalc - Sistema de Calculo de Acrescimos Legais e orienta usar a taxa correspondente ao mes e ano do vencimento do debito.
+- Por cautela, as fixtures abaixo nao fixam taxa numerica derivada por subtracao de acumuladas como verdade normativa de credito. Elas separam:
+  - teste de marco/intervalo normativo;
+  - teste de formula com `taxaSelicDecimal` conhecida/injetada;
+  - teste de indisponibilidade por dado ausente.
+
+#### FX-SEL-001 - Pagamento Indevido ou a Maior PJ
+
+- Caso base: CT-SEL-002 e CT-SEL-005.
+- Tipo de credito: `Pagamento Indevido ou a Maior`.
+- Fonte normativa: manual de Pagamento Indevido ou a Maior PJ, paginas 10 a 12; AUD-01.
+- Entrada minima:
+  - `valorCreditoOriginalNaDataEntrega`: 10000.00.
+  - `totalDebitosDocumento`: 11500.00.
+  - `dataArrecadacaoCredito`: 2024-01-15.
+  - `dataTransmissaoOriginal`: 2025-06-10.
+  - `taxaSelicDecimal` para teste de formula: 0.15.
+- Resultado esperado:
+  - termo inicial normativo: mes subsequente ao pagamento, ou seja, 2024-02.
+  - termo final normativo: mes anterior a entrega da DCOMP original, com 1% no mes da entrega.
+  - se a taxa validada for 0.15, `creditoAtualizado = 11500.00`, `creditoOriginalUtilizado = 10000.00` e `saldoCreditoOriginal = 0.00`.
+  - status esperado: `normativo` apenas se `dataArrecadacaoCredito`, `valorCreditoOriginalNaDataEntrega`, `totalDebitosDocumento` e `dataTransmissaoOriginal` estiverem presentes.
+
+#### FX-SEL-002 - Saldo Negativo IRPJ/CSLL
+
+- Caso base: CT-SEL-001, CT-SEL-003 e CT-SEL-005.
+- Tipo de credito: `Saldo Negativo de IRPJ` ou `Saldo Negativo de CSLL`.
+- Fonte normativa: manual de Saldo Negativo IRPJ/CSLL, paginas 21 a 24; AUD-01.
+- Entrada minima:
+  - `periodoApuracaoCreditoFim`: 2023-12-31.
+  - `valorCreditoOriginalNaDataEntrega`: 100000.00.
+  - `totalDebitosDocumento`: 110000.00.
+  - `dataTransmissaoOriginal`: 2024-10-16.
+  - `taxaSelicDecimal` para teste de formula: 0.10.
+- Resultado esperado:
+  - termo inicial normativo: mes subsequente ao encerramento do periodo de apuracao, ou seja, 2024-01.
+  - termo final normativo: mes anterior a entrega da DCOMP original, com 1% no mes da entrega.
+  - se a taxa validada for 0.10, `creditoAtualizado = 110000.00`, `creditoOriginalUtilizado = 100000.00` e `saldoCreditoOriginal = 0.00`.
+  - caso derivado de taxa zero: se a DCOMP original for entregue no mesmo mes do encerramento do periodo de apuracao, `taxaSelicDecimal = 0`.
+
+#### FX-SEL-003 - Retencao Previdenciaria PJ
+
+- Caso base: CT-SEL-007 e CT-SEL-005.
+- Tipo de credito: retencao previdenciaria Lei n. 9.711/1998.
+- Fonte normativa: manual de Retencao Previdenciaria PJ, paginas 1 e 6 a 12; AUD-01.
+- Entrada minima:
+  - `competenciaCredito`: 2024-01.
+  - `valorCreditoOriginalNaDataEntrega`: 50000.00.
+  - `totalDebitosDocumento`: 55000.00.
+  - `dataTransmissaoOriginal`: 2024-05-20.
+  - `taxaSelicDecimal` para teste de formula: 0.10.
+- Resultado esperado:
+  - termo inicial normativo: segundo mes subsequente a competencia, ou seja, 2024-03.
+  - termo final normativo: mes anterior a entrega da DCOMP original, com 1% no mes da entrega.
+  - se a taxa validada for 0.10, `creditoAtualizado = 55000.00`, `creditoOriginalUtilizado = 50000.00` e `saldoCreditoOriginal = 0.00`.
+  - sem atualizacao se a DCOMP original for entregue no mesmo mes ou no mes seguinte a competencia.
+
+#### FX-SEL-004 - PIS/Cofins com PER original e prazo de 361 dias
+
+- Caso base: CT-SEL-014.
+- Tipo de credito: `Ressarcimento de PIS/Pasep e Cofins nao cumulativos`.
+- Fonte normativa: manual de Ressarcimento de PIS/Pasep e Cofins nao cumulativos; IN RFB n. 2.055/2021, art. 152; AUD-01.
+- Entrada minima:
+  - `dataProtocoloPerOriginal`: 2024-01-10.
+  - `valorCreditoOriginalNaDataEntrega`: 80000.00.
+  - `totalDebitosDocumento`: 88000.00.
+  - `dataTransmissaoOriginal`: 2025-04-15.
+  - `taxaSelicDecimal` para teste de formula: 0.10.
+- Resultado esperado:
+  - termo inicial normativo: mes subsequente ao 361 dia contado da data do PER original.
+  - termo final normativo: mes anterior a entrega da DCOMP original, com 1% no mes da entrega.
+  - se a taxa validada for 0.10, `creditoAtualizado = 88000.00`, `creditoOriginalUtilizado = 80000.00` e `saldoCreditoOriginal = 0.00`.
+  - a contagem civil exata do 361 dia deve ficar concentrada em `DateRulesService` e validada antes de automatizacao definitiva.
+
+#### FX-SEL-005 - Ressarcimento de IPI conforme art. 152
+
+- Caso base: CT-SEL-016.
+- Tipo de credito: ressarcimento de IPI.
+- Fonte normativa: IN RFB n. 2.055/2021, art. 152; roteiro de Ressarcimento de IPI apenas como contexto de tipo de credito/PER previo; AUD-01.
+- Entrada minima:
+  - `dataProtocoloPerOriginal`: 2024-02-20.
+  - `valorCreditoOriginalNaDataEntrega`: 120000.00.
+  - `totalDebitosDocumento`: 132000.00.
+  - `dataTransmissaoOriginal`: 2025-07-10.
+  - `taxaSelicDecimal` para teste de formula: 0.10.
+- Resultado esperado:
+  - termo inicial normativo: mes subsequente ao 361 dia contado do PER original.
+  - termo final normativo: mes anterior a entrega da DCOMP original, com 1% no mes da entrega.
+  - se a taxa validada for 0.10, `creditoAtualizado = 132000.00`, `creditoOriginalUtilizado = 120000.00` e `saldoCreditoOriginal = 0.00`.
+  - escopo negativo obrigatório: nao implementar RAIPI, apuracao trimestral, estornos ou demais regras operacionais do roteiro de IPI.
+
+#### FX-SEL-006 - Credito Judicial com componente de pagamento e SELIC
+
+- Caso base: CT-SEL-010 e CT-SEL-013.
+- Tipo de credito: `Credito Oriundo de Acao Judicial`, layout novo por componente.
+- Fonte normativa: manual de Credito Oriundo de Acao Judicial, paginas 22 a 24, 29, 48, 51 e 52; AUD-01.
+- Entrada minima:
+  - componente unico `pagamento`.
+  - `formaAtualizacao`: `SELIC`.
+  - `dataArrecadacao`: 2024-03-15.
+  - `valorOriginalComponente`: 30000.00.
+  - `creditoAtualizadoUtilizado`: 34500.00.
+  - `dataTransmissaoOriginal`: 2025-03-20.
+  - `taxaSelicDecimal` para teste de formula: 0.15.
+- Resultado esperado:
+  - termo inicial normativo: mes subsequente a data de arrecadacao.
+  - consumo deve ocorrer por componente, preservando saldo original por componente.
+  - se a taxa validada for 0.15, `valorAtualizadoComponente = 34500.00` e `creditoOriginalUtilizadoComponente = 30000.00`.
+  - se componentes nao estiverem presentes no e-CAC/modelo, status deve ser `dados_insuficientes`, nao fator historico.
+
+#### FX-SEL-007 - Dados Insuficientes
+
+- Caso base: CT-SEL-014, CT-SEL-016 e AUD-03.
+- Tipo de credito: PIS/Cofins ou IPI sujeito ao art. 152.
+- Fonte normativa: IN RFB n. 2.055/2021, art. 152; AUD-01/AUD-03.
+- Entrada minima:
+  - `tipoCredito`: ressarcimento sujeito ao art. 152.
+  - `valorCreditoOriginalNaDataEntrega`: presente.
+  - `totalDebitosDocumento`: presente.
+  - `dataTransmissaoOriginal`: presente.
+  - `dataProtocoloPerOriginal`: ausente.
+- Resultado esperado:
+  - `statusCalculo = dados_insuficientes`.
+  - `dadosAusentes` inclui `dataProtocoloPerOriginal`.
+  - nenhum valor original importado e alterado.
+  - o motor nao deve aplicar por analogia a data da DCOMP nem fator historico como resultado normativo.
+
+#### FX-SEL-008 - DCOMP transmitida em dia nao util
+
+- Caso base: CT-SEL-017.
+- Tipo de credito: qualquer tipo com regra SELIC confirmada e dados completos.
+- Fonte normativa: IN RFB n. 2.055/2021, art. 157; AUD-01.
+- Entrada minima:
+  - `dataTransmissaoOriginal`: 2025-06-01, domingo.
+  - `dataEntregaValoracaoEsperada`: primeiro dia util subsequente, sujeito a calendario aplicavel.
+  - demais dados do tipo de credito completos.
+- Resultado esperado:
+  - `dataTransmissaoOriginal` permanece 2025-06-01.
+  - `dataEntregaValoracao` e calculada separadamente.
+  - termo final e acrescimo de 1% usam a data de valoracao, sem contaminar o campo original.
+
 ## Template de Caso de Teste
 
 ### Identificacao

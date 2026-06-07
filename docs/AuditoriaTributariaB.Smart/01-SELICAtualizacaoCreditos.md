@@ -349,6 +349,8 @@ Consequencia:
 
 ## Casos de Teste Recomendados
 
+Os casos CT-SEL foram transformados em fixtures normativas detalhadas em `09-CasosTesteMatrizEvidencias.md`, secao "Rodada de Especificacao de Fixtures SELIC - 2026-06-07". A especificacao separa teste de marco/intervalo normativo, teste de formula com taxa injetada e teste de dados insuficientes, evitando tratar a tabela Sicalc de debitos como taxa numerica definitiva de credito sem validacao adicional.
+
 - Saldo negativo IRPJ/CSLL com PA anual e DCOMP transmitida em mes posterior: marco inicial no mes seguinte ao encerramento do periodo de apuracao; transmissao original como marco final.
 - Saldo negativo IRPJ/CSLL com transmissao no mesmo mes do encerramento do periodo de apuracao: taxa igual a zero.
 - Pagamento indevido ou a maior com pagamento e transmissao no mesmo mes: taxa igual a zero.
