@@ -1,0 +1,149 @@
+# Controle Geral da Auditoria Tributaria B.Smart PER/DCOMPs
+
+Atualizado em: 2026-06-06
+
+## Objetivo
+
+Controlar a auditoria tributaria da aplicacao B.Smart PER/DCOMPs, registrando progresso, objetos auditados, criticidade, fragilidades, achados, inconsistencias, evidencias normativas e possiveis solucoes tecnicas.
+
+Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de credito, as regras de compensacao, atualizacao, consumo de credito, retificacao, restricoes e rastreabilidade exigidas nos manuais oficiais da Receita Federal do Brasil e nos atos normativos por eles citados.
+
+## Estado Geral
+
+- Status geral: Em preparacao
+- Prioridade atual do roadmap: Auditoria Tributaria Guiada por Tipo de Credito
+- Fonte normativa primaria: manuais oficiais da RFB em `Knowledge/`
+- Fonte tecnica primaria: codigo em `src/`, especialmente `ExcelParser.ts`, `CalculoService.ts`, `store.ts`, UI e servico de relatorio
+- Regra operacional central: preservar integralmente campos `...Original`
+
+## Niveis de Criticidade
+
+- Critica: risco direto de resultado tributario incorreto, perda de rastreabilidade ou orientacao equivocada de compensacao.
+- Alta: pode gerar divergencia relevante em simulacao, relatorio ou interpretacao pelo usuario.
+- Media: afeta confiabilidade, clareza, manutencao ou cobertura de casos relevantes.
+- Baixa: melhoria documental, ergonomica ou preventiva sem impacto imediato no calculo.
+
+## Status dos Objetos
+
+- Nao iniciado: arquivo criado, mas sem analise normativa.
+- Em analise: manual ou codigo em leitura.
+- Achado registrado: ha fragilidade ou divergencia documentada.
+- Solucao proposta: ha proposta tecnica, ainda nao implementada.
+- Validado normativamente: regra confirmada contra fonte oficial.
+- Implementado: ajuste tecnico aplicado.
+- Revalidado: lint/build/teste/fluxo real confirmaram o ajuste.
+
+## Registro dos Objetos de Auditoria
+
+| ID | Objeto | Arquivo | Criticidade | Status | Descricao precisa | Fragilidades possiveis | Achados/Inconsistencias atuais | Possiveis solucoes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| AUD-01 | SELIC e atualizacao de creditos | `01-SELICAtualizacaoCreditos.md` | Critica | Solucao proposta | Validar marco inicial, marco final, acrescimo de 1%, tipo de credito e uso da tabela SELIC. | Calculo simplificado pode distorcer consumo de credito em simulacoes; regras variam por tipo de credito. | `CalculoService.ts` ainda contem funcao simplificada `calcularSelicAcumulada`; ela parece nao ser chamada no fluxo ativo. O fluxo ativo usa fator empirico para edicoes e aproximacao para DCOMP hipotetica. Manuais de Saldo Negativo IRPJ/CSLL e Pagamento Indevido PJ confirmam marcos iniciais distintos por tipo de credito e descapitalizacao por `Total dos Debitos / (1 + taxa Selic)`. | Criar engine normativa de SELIC por tipo de credito, com input/result rastreavel, mantendo valores importados e `...Original` intactos. |
+| AUD-02 | Tipos de credito, elegibilidade e restricoes | `02-TiposCreditoElegibilidadeRestricoes.md` | Critica | Em analise | Mapear quais creditos podem ser compensados, ressarcidos ou restituidos e quais debitos nao podem ser informados. | Permitir simulacao de combinacoes vedadas ou incompatibilidade entre credito e debito. | Manual de meios confirma que tipo de credito define canal cabivel e pre-requisitos; ainda nao ha catalogo normativo no codigo. | Construir matriz tipo de credito x meio permitido x restricoes x manual aplicavel. |
+| AUD-03 | Importacao do relatorio e-CAC e linhagem | `03-ImportacaoRelatorioECACELinhagem.md` | Alta | Nao iniciado | Auditar parser, normalizacao, datas, agrupamento por cadeia, retificacoes e cancelamentos. | Mudanca de coluna da RFB pode quebrar importacao; erro de linhagem altera cascata inteira. | Parser funcional, mas precisa matriz de colunas obrigatorias e alternativas. | Especificar contrato de importacao, validacoes e mensagens de erro. |
+| AUD-04 | Consumo de credito original e cascata | `04-ConsumoCreditoOriginalECascata.md` | Critica | Nao iniciado | Validar como o saldo original e consumido, propagado e comparado com o saldo informado pela RFB. | Erro de abatimento pode indicar retificacao indevida ou esconder insuficiencia de credito. | Motor funcional, mas ainda nao auditado contra cada tipo de credito. | Separar regras gerais de regras especificas por tipo de credito. |
+| AUD-05 | Valores originais e rastreabilidade | `05-ValoresOriginaisRastreabilidade.md` | Critica | Nao iniciado | Garantir preservacao de `...Original`, separando valores importados, calculados e simulados. | Contaminar base original compromete prova, auditoria e relatorio. | Invariante reconhecida, mas ainda precisa matriz de campos. | Criar tabela de origem, mutabilidade e finalidade por campo. |
+| AUD-06 | Retificacoes, vigencia e bloqueios | `06-RetificacoesVigenciaBloqueios.md` | Alta | Em analise | Validar status da RFB, documentos vigentes, bloqueados, retificados, cancelados e impactos em cascata. | Classificacao incorreta pode permitir edicao indevida ou ignorar documento relevante. | Manual inicial confirma cancelamento irreversivel e restricoes a documento analisado/intimado; vedacoes podem exigir bloqueios consultivos adicionais. | Mapear cada situacao contra manual/ato e comportamento esperado. |
+| AUD-07 | Simulacao, edicoes manuais e DCOMP hipotetica | `07-SimulacaoEdicoesDcompHipotetica.md` | Critica | Achado registrado | Auditar os efeitos tributarios de reduzir debitos, recalcular juros/multa e criar DCOMP hipotetica. | Simulacao pode parecer normativa sem calculo SELIC totalmente validado. | Edicao manual usa fator historico; hipotetica usa aproximacao de fator SELIC da ultima DCOMP real. Manual de debitos exige separar valores informados/compensados e observar multa, juros, reducao e data de transmissao original. | Exigir rastreabilidade do metodo usado e migrar para calculo normativo quando validado. |
+| AUD-08 | Relatorios PDF/Excel e rastreabilidade | `08-RelatoriosPDFExcelRastreabilidade.md` | Alta | Nao iniciado | Garantir que relatorios mostrem original, simulado, delta, status e fonte do calculo. | Relatorio pode omitir premissas ou misturar saldo original com saldo simulado. | PDF existe; Excel esta no backlog com prazo a definir. | Criar secao de premissas, metodologia e matriz de campos exportados. |
+| AUD-09 | Casos de teste normativos e evidencias | `09-CasosTesteMatrizEvidencias.md` | Critica | Nao iniciado | Criar matriz de testes por tipo de credito, regra e caso real. | Ajustes futuros sem teste podem quebrar regras tributarias sensiveis. | Ainda nao ha suite normativa. | Criar casos manuais e depois automatizar fixtures representativas. |
+| AUD-10 | Base geral PER/DCOMP Web | `10-BaseGeralPERDCOMPWeb.md` | Alta | Em analise | Consolidar orientacoes gerais aplicaveis a multiplos tipos de credito e objetos de auditoria. | Corrigir regras especificas sem base transversal pode gerar inconsistencias entre tipos de credito, debitos, UI e relatorio. | Primeira rodada de leitura concluida para quatro manuais gerais: meios, vedacoes, informar debitos e orientacoes iniciais. | Usar o consolidado como camada de referencia antes de auditar manuais especificos por tipo de credito. |
+
+## Achados Transversais Iniciais
+
+### ACH-001 - SELIC simplificada em simulacoes
+
+- Objeto relacionado: AUD-01, AUD-07
+- Criticidade: Critica
+- Evidencia tecnica:
+  - `src/services/CalculoService.ts`
+  - `calcularSelicAcumulada` implementa subtracao de taxas acumuladas em `selic.json` e soma `1%`.
+  - A funcao parece nao ser chamada no fluxo ativo.
+  - O fluxo ativo de DCOMP editada usa fator historico `totalDebitosOriginal / valorUtilizadoPerdcompOriginal`.
+  - O fluxo ativo de DCOMP hipotetica usa fator da ultima DCOMP real e soma `getSelicMensal` do mes da ultima transmissao.
+- Risco:
+  - Simulacoes podem apresentar consumo de credito original estimado por aproximacao, sem reproduzir integralmente a regra normativa por tipo de credito.
+- Diretriz:
+  - Nao alterar valores importados nem campos `...Original`.
+  - Antes de mudar o calculo, auditar os manuais oficiais e registrar a regra por tipo de credito.
+  - Implementar regra nova como camada calculada e rastreavel.
+
+### ACH-002 - Ausencia de catalogo normativo de meios por tipo de credito
+
+- Objeto relacionado: AUD-02, AUD-10
+- Criticidade: Critica
+- Evidencia normativa:
+  - `meios-para-solicitar-ou-compensar-cada-tipo-de-credito.pdf`
+- Risco:
+  - O app pode tratar como PER/DCOMP Web ou como compensavel um credito que exige Programa PER/DCOMP, formulario/processo, Portal do Simples, eSocial Simplificado, habilitacao ou pedido previo.
+- Diretriz:
+  - Criar catalogo consultivo de tipos de credito antes de endurecer bloqueios.
+
+### ACH-003 - Vedacoes legais ainda nao modeladas
+
+- Objeto relacionado: AUD-02, AUD-06, AUD-10
+- Criticidade: Critica
+- Evidencia normativa:
+  - `creditos-e-debitos-que-nao-podem-ser-informados-em-declaracao-de-compensacao.pdf`
+- Risco:
+  - Simulacoes podem incluir creditos ou debitos vedados em DCOMP, como DAU, parcelados, Simples Nacional, estimativas de IRPJ/CSLL, creditos sob fiscalizacao ou creditos judiciais sem requisito.
+- Diretriz:
+  - Implementar primeiro matriz de alerta e evidencia; bloquear apenas depois de validacao com casos reais.
+
+### ACH-004 - Multa, juros e debitos precisam de modelo mais rico
+
+- Objeto relacionado: AUD-07, AUD-10
+- Criticidade: Alta
+- Evidencia normativa:
+  - `per_dcomp-web_-informar-debitos-para-compensacao.pdf`
+- Risco:
+  - O modal pode confundir valores informados, valores compensados, reducao de multa, juros, saldo devedor e acrescimos calculados pelo PER/DCOMP Web.
+- Diretriz:
+  - Separar campos e registrar metodologia antes de alterar calculos.
+
+### ACH-005 - Marco inicial da SELIC varia por tipo de credito
+
+- Objeto relacionado: AUD-01, AUD-04, AUD-07
+- Criticidade: Critica
+- Evidencia normativa:
+  - `per_dcomp-web_-saldo-negativo-de-irpj-ou-csll.pdf`, paginas 21 a 24.
+  - `per_dcomp-web_-pagamento-indevido-ou-a-maior-pessoa-juridica.pdf`, paginas 10 a 12.
+  - `Selic_Acumulada_ate_06.2026.pdf`, paginas 1 a 4.
+- Regra confirmada:
+  - Saldo Negativo IRPJ/CSLL usa SELIC desde o mes seguinte ao final do periodo de apuracao.
+  - Pagamento Indevido ou a Maior PJ usa SELIC desde o mes seguinte a data do pagamento.
+  - Ambos usam ate o mes anterior a entrega da DCOMP, mais 1% no mes corrente, exceto quando a DCOMP original e apresentada no mesmo mes do marco material.
+  - Retificacao usa a data de transmissao da DCOMP original.
+  - Credito original utilizado e obtido por descapitalizacao do total de debitos por `(1 + taxa Selic)`.
+- Evidencia tecnica:
+  - `src/services/CalculoService.ts`, linhas 30 a 60: funcao simplificada e nao comprovadamente usada no fluxo ativo.
+  - `src/services/CalculoService.ts`, linhas 162 a 196: DCOMP hipotetica e DCOMP editada usam fator historico/aproximado.
+- Risco:
+  - Simulacoes podem calcular saldo original restante por fator empirico, nao por regra normativa individualizada.
+- Diretriz:
+  - Implementar futuramente uma camada normativa de SELIC por tipo de credito, com fonte, hipoteses e resultado calculado separados dos campos importados.
+  - Manter a regra atual identificada como estimativa operacional ate validacao/implementacao autorizada.
+
+## Fluxo de Trabalho da Auditoria
+
+1. Escolher um objeto de auditoria no controle geral.
+2. Abrir o arquivo proprio do objeto e registrar escopo, perguntas e fontes.
+3. Ler o manual oficial da RFB correspondente em `Knowledge/`.
+4. Registrar trechos normativos por resumo tecnico, evitando depender de memoria.
+5. Mapear regra normativa para campos do Excel, tipos do modelo e funcoes do codigo.
+6. Classificar achados por criticidade.
+7. Definir solucao tecnica sem contaminar valores originais.
+8. Criar casos de teste ou cenarios de validacao.
+9. Somente depois implementar ajuste no codigo.
+10. Revalidar lint, build, fluxo real de importacao e relatorio.
+
+## Sugestoes de Otimizacao do Trabalho
+
+- Manter cada objeto de auditoria pequeno o suficiente para virar uma sessao de trabalho.
+- Registrar sempre a diferenca entre "regra normativa confirmada", "hipotese do usuario" e "comportamento atual do codigo".
+- Criar uma matriz de campos com quatro colunas obrigatorias: origem RFB, campo no modelo, mutabilidade, uso em relatorio.
+- Adotar nomenclatura fixa:
+  - Original/importado: valores vindos do relatorio e-CAC.
+  - Calculado: valores produzidos pelo motor da aplicacao.
+  - Simulado: valores alterados pelo usuario ou por DCOMP hipotetica.
+  - Evidencia: manual, ato normativo, relatorio RFB ou teste real.
+- Antes de mexer em qualquer regra tributaria, criar pelo menos um caso de validacao com entrada, saida esperada e fonte normativa.
