@@ -199,6 +199,107 @@ Criar uma camada de calculo de SELIC auditavel, sem sobrescrever campos `...Orig
 - UI e PDF devem indicar quando o valor e importado, calculado normativamente ou estimado.
 - Enquanto a engine normativa nao for implementada, a UI/PDF devem tratar os fatores historicos de simulacao como estimativa operacional, nao como SELIC validada.
 
+## Desenho Tecnico Preliminar
+
+Sem implementar codigo neste momento, a arquitetura recomendada para a primeira entrega normativa e:
+
+### 1. Camada de metadados importados
+
+Adicionar ao modelo um bloco opcional, por exemplo `metadadosCredito`, com dados vindos da RFB ou resolvidos por linhagem:
+
+- `dataArrecadacaoCredito`
+- `competenciaCredito`
+- `tipoCompetenciaCredito`
+- `numeroPagamento`
+- `periodoApuracaoDarf`
+- `processoJudicial`
+- `processoHabilitacao`
+- `processoAdministrativo`
+- `dataProtocoloPerOriginal`
+- `numeroPerOriginal`
+- `origemDataProtocoloPerOriginal`: `importada`, `resolvida_por_linhagem`, `informada_usuario`
+
+Esses campos sao metadados de importacao/evidencia. Eles nao substituem campos `...Original` e nao representam resultado calculado.
+
+### 2. `CreditoRulesService`
+
+Responsavel por classificar o tipo de credito e produzir uma regra aplicavel:
+
+- `classificarTipoCredito(tipoCredito: string)`;
+- `obterRegraSelic(tipoCreditoClassificado, metadadosCredito)`;
+- `validarDadosMinimos(regra, dcomp)`.
+
+Saidas esperadas:
+
+- tipo de regra: `pagamento`, `saldo_negativo`, `retencao_previdenciaria`, `ressarcimento_art_152`, `judicial_componente`, `vedado`, `indisponivel`;
+- fonte normativa;
+- lista de dados obrigatorios;
+- funcao/descritor de termo inicial;
+- funcao/descritor de termo final;
+- excecoes de taxa zero.
+
+### 3. `DateRulesService`
+
+Responsavel por datas normativas:
+
+- converter periodo/competencia em mes de referencia;
+- aplicar art. 157 para DCOMP transmitida em dia nao util;
+- calcular 361 dia do PER original para art. 152;
+- retornar `dataEntregaValoracao` sem alterar `dataTransmissaoOriginal`.
+
+### 4. `SelicService`
+
+Responsavel apenas por taxa e formulas:
+
+- calcular intervalo mensal aplicavel;
+- obter taxa SELIC a partir da fonte de tabela validada;
+- aplicar `+1%` do mes da entrega/valoracao quando cabivel;
+- calcular `creditoAtualizado`, `creditoOriginalUtilizado` e `saldoCreditoOriginal`.
+
+Entrada conceitual:
+
+- valor original/base;
+- total dos debitos;
+- termo inicial;
+- termo final;
+- data de entrega/valoracao;
+- fonte da tabela SELIC;
+- regra normativa.
+
+Saida conceitual:
+
+- `statusCalculo`: `normativo`, `estimativa_historica`, `dados_insuficientes`, `vedado`;
+- `taxaSelicDecimal`;
+- `creditoAtualizado`;
+- `creditoOriginalUtilizadoCalculado`;
+- `saldoCreditoOriginalCalculado`;
+- `fonteNormativa`;
+- `dadosUtilizados`;
+- `dadosAusentes`;
+- `hipoteses`.
+
+### 5. Integracao com `CalculoService`
+
+`CalculoService` nao deve conter a regra normativa espalhada. Ele deve:
+
+- pedir a `CreditoRulesService` a regra aplicavel;
+- pedir a `SelicService` o resultado calculado;
+- usar resultado normativo apenas quando `statusCalculo = normativo`;
+- manter o fator historico atual como fallback identificado por `statusCalculo = estimativa_historica`;
+- nunca alterar campos `...Original`.
+
+### 6. UI e relatorio
+
+Todo valor recalculado deve exibir metodologia:
+
+- `Importado da RFB`;
+- `Calculado normativamente`;
+- `Estimativa historica`;
+- `Dados insuficientes`;
+- `Vedado/fora de DCOMP`.
+
+O relatorio deve listar fonte normativa, taxa, datas usadas e dados ausentes quando o calculo nao puder ser normativo.
+
 ## Matriz Minima Implementavel de SELIC
 
 Esta matriz limita a primeira implementacao normativa aos tipos de credito e dados ja documentados. Onde faltar dado importado, o resultado deve ser "calculo normativo indisponivel" e nao uma inferencia silenciosa.
@@ -223,6 +324,28 @@ Invariantes:
 - Nunca sobrescrever `valorUtilizadoPerdcompOriginal`, `valorTotalCreditoDetalhadoOriginal`, `valorPrincipalOriginal`, `valorMultaOriginal`, `valorJurosOriginal` ou `valorTotalOriginal`.
 - Persistir o resultado calculado em campos separados, com `metodo`, `fonteNormativa`, `hipoteses`, `dadosAusentes` e `statusCalculo`.
 - Tratar transmissao em dia nao util conforme art. 157 antes de calcular o mes de valoracao.
+
+## Pre-Requisito Tecnico de Importacao
+
+Auditoria de `ExcelParser.ts`, `types.ts` e `Sheets/relatorio.xlsx` em 2026-06-07 mostrou que a planilha e-CAC contem marcos de SELIC que o modelo ainda nao persiste:
+
+- `Data de Arrecadacao`;
+- `Competencia do Credito`;
+- `Tipo Competencia`;
+- `Numero do Pagamento - DARF`;
+- `Periodo de Apuracao do DARF`;
+- `Processo Judicial`;
+- `Processo de Habilitacao`;
+- `Processo Administrativo`;
+- `Inicio do Periodo de Apuracao do Credito` e `Fim do Periodo de Apuracao do Credito`, na aba de debitos;
+- `Total Credito Original Utilizado`, na aba de debitos.
+
+Consequencia:
+
+- Antes de implementar `SelicService`, e necessario ampliar o contrato de importacao e o modelo `DCOMP` com metadados opcionais de origem RFB.
+- Se o dado necessario nao estiver importado ou resolvido por linhagem, a engine deve retornar `dados_insuficientes`.
+- Para ressarcimentos do art. 152, `dataProtocoloPerOriginal` so pode ser preenchida se o PER original estiver presente/identificado na cadeia ou se o usuario fornecer dado complementar rastreavel.
+- Para credito judicial, a planilha traz processos judicial/habilitacao, mas nao componentes de credito; portanto, componente judicial segue como dado complementar exigido.
 
 ## Casos de Teste Recomendados
 

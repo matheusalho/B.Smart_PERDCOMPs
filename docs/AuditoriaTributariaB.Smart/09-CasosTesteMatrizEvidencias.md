@@ -39,6 +39,21 @@ Critica.
 | CT-DEB-001 | Qualquer | Multa/juros por data de vencimento x transmissao original | `per_dcomp-web_-informar-debitos-para-compensacao.pdf` | Debito em atraso | Metodo registrado e alerta Sicalc quando necessario | `ModalEdicao.tsx`, `CalculoService.ts` | Em especificacao |
 | CT-CAN-001 | Qualquer | Cancelamento irreversivel e restricoes | `orientacoes-iniciais-portal-e-cac-e-per_dcomp_web.pdf` | Documento analisado/intimado | Cancelamento nao sugerido | Futuro catalogo de status/acoes | Em especificacao |
 
+## Fixtures Normativas Minimas para Primeira Implementacao SELIC
+
+Priorizar estes casos para transformar em fixtures automatizadas antes de qualquer alteracao de calculo:
+
+| Fixture | Caso base | Motivo | Dados minimos a fixture deve conter | Resultado de aceite |
+| --- | --- | --- | --- | --- |
+| FX-SEL-001 | CT-SEL-002 | Pagamento indevido/maior e regra simples por data de pagamento | Tipo de credito, data de arrecadacao, valor original, total de debitos, data da DCOMP original | Taxa pelo mes seguinte ao pagamento; descapitalizacao por `(1 + taxa)`. |
+| FX-SEL-002 | CT-SEL-001 | Saldo negativo IRPJ/CSLL | Periodo de apuracao com fim identificavel, valor original, total de debitos, data da DCOMP original | Taxa pelo mes seguinte ao fim do PA; zero se DCOMP no mesmo mes. |
+| FX-SEL-003 | CT-SEL-007 | Retencao previdenciaria PJ | Competencia, valor original, deducoes/valor disponivel, data da DCOMP original | Taxa pelo segundo mes seguinte a competencia; zero se DCOMP no mesmo mes ou seguinte. |
+| FX-SEL-004 | CT-SEL-014 | PIS/Cofins com PER e 361 dias | Data de protocolo/transmissao do PER original, valor original/saldo, data da DCOMP original | Taxa pelo mes subsequente ao 361 dia do PER original. |
+| FX-SEL-005 | CT-SEL-016 | IPI conforme art. 152 | Valor original/base, data do PER original, data da DCOMP original | Mesmo marco do art. 152, sem apuracao operacional de RAIPI. |
+| FX-SEL-006 | CT-SEL-010 ou CT-SEL-011 | Credito judicial simples com componente SELIC | Um componente judicial com forma SELIC, data/marco inicial, valor original/atualizado ou total de debitos | Calculo por componente; se componente ausente, nao calcular. |
+| FX-SEL-007 | Novo cenario derivado de CT-SEL-005/014/016 | Dados insuficientes | Tipo de credito que exige data de pagamento ou PER original, mas sem esse dado no modelo | Resultado `dados_insuficientes`, com lista objetiva de campos ausentes e sem aproximacao. |
+| FX-SEL-008 | CT-SEL-017 | Data de entrega em dia nao util | DCOMP original transmitida em dia nao util e calendario/regra de dia util | Data de valoracao ajustada pelo art. 157 sem alterar `dataTransmissaoOriginal`. |
+
 ## Template de Caso de Teste
 
 ### Identificacao
