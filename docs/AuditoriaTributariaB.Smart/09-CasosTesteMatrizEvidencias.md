@@ -78,6 +78,121 @@ Priorizar estes casos para transformar em fixtures automatizadas antes de qualqu
 | FX-SEL-007 | Novo cenario derivado de CT-SEL-005/014/016 | Dados insuficientes | Tipo de credito que exige data de pagamento ou PER original, mas sem esse dado no modelo | Resultado `dados_insuficientes`, com lista objetiva de campos ausentes e sem aproximacao. |
 | FX-SEL-008 | CT-SEL-017 | Data de entrega em dia nao util | DCOMP original transmitida em dia nao util e calendario/regra de dia util | Data de valoracao ajustada pelo art. 157 sem alterar `dataTransmissaoOriginal`. |
 
+## Rodada de Automacao Fase 1 - 2026-06-07
+
+Escopo autorizado:
+
+- criar infraestrutura de testes;
+- criar contratos e servicos puros em `src/services/normativo/`;
+- nao integrar a camada normativa ao fluxo ativo de calculo, parser, store, UI ou PDF;
+- preservar campos `...Original`.
+
+Arquivos criados:
+
+| Arquivo | Papel |
+| --- | --- |
+| `src/services/normativo/types.ts` | Contratos comuns de fonte, origem de valor, status de calculo e resultado auditavel. |
+| `src/services/normativo/selicMath.ts` | Formula pura com taxa SELIC injetada: credito atualizado, credito original utilizado e saldo original calculado. |
+| `src/services/normativo/dateRules.ts` | Helpers puros para marcos de SELIC, art. 152 e art. 157. |
+| `src/services/normativo/creditRules.ts` | Classificacao consultiva dos tipos de credito prioritarios. |
+| `src/services/normativo/statusRules.ts` | Classificacao consultiva de status processual, vigencia, editabilidade e cancelabilidade. |
+| `src/services/normativo/cascataRules.ts` | Regras consultivas de estrategia de cascata por tipo de credito. |
+| `src/services/normativo/fixturesSelic.ts` | Fixtures FX-SEL-001 a FX-SEL-008 como contrato de regressao. |
+| `src/services/normativo/originalValueGuards.ts` | Guarda pura para capturar e comparar campos com sufixo `Original`. |
+
+Testes criados:
+
+| Arquivo de teste | Cobertura |
+| --- | --- |
+| `selicMath.test.ts` | Formula com taxa injetada e `dados_insuficientes` quando taxa ausente. |
+| `dateRules.test.ts` | Termos iniciais de pagamento, saldo negativo, retencao previdenciaria, art. 152 e ajuste de domingo pelo art. 157. |
+| `creditRules.test.ts` | Seis tipos reais da planilha inicial e tipo desconhecido sem analogia. |
+| `statusRules.test.ts` | `Pedido de cancelamento deferido`, `Nao admitido` e `Homologado`. |
+| `fixturesSelic.test.ts` | Existencia das oito fixtures SELIC, escopo limitado de IPI e caso sem PER original. |
+| `cascataRules.test.ts` | Pool de detalhadores, credito raiz replicado, credito judicial por componentes e tipo desconhecido. |
+| `originalValueGuards.test.ts` | Deteccao de mutacao de `...Original` e permissao de mudanca em campos mutaveis. |
+
+Resultado dos gates:
+
+- `npm run test`: aprovado, 7 arquivos de teste, 28 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado.
+
+Observacoes:
+
+- `npm install --save-dev vitest` reportou 1 vulnerabilidade alta no `npm audit`; nao foi corrigida nesta fase para evitar upgrade amplo fora do escopo.
+- O build emitiu apenas avisos de tamanho de chunk/plugin timings do Vite, sem falha.
+- A regra do art. 152 inclui hipotese `contagem_calendario_pendente_validacao_usuario`, conforme questao aberta ja registrada em AUD-11.
+
+## Rodada de Automacao Fase 2 Parcial - 2026-06-07
+
+Novo teste real:
+
+| Arquivo de teste | Cobertura |
+| --- | --- |
+| `src/services/__tests__/ExcelParser.test.ts` | Importacao das planilhas reais de `Sheets/`, metadados opcionais em `DCOMP` e `ImportQualityReport`. |
+
+Casos cobertos:
+
+- todas as planilhas `.xlsx` reais presentes em `Sheets/` continuam importando;
+- a planilha real mais recente valida contagens de qualidade da importacao;
+- documento real sem cadeia relacional e reportado com motivo `sem_cadeia_relacional`;
+- DCOMP judicial real preserva `processoJudicial` e `processoHabilitacao` em `metadadosCreditoImportado`;
+- campos `...Original` continuam preservados no parse.
+
+Resultado dos gates:
+
+- `npm run test`: aprovado, 8 arquivos de teste, 34 testes;
+- `npm run lint`: aprovado;
+- `npm run build`: aprovado.
+
+## Rodada de Automacao Fase 2 Consultiva - 2026-06-07
+
+Testes adicionados/expandidos:
+
+| Arquivo de teste | Cobertura |
+| --- | --- |
+| `src/services/__tests__/ExcelParser.test.ts` | Classificacao consultiva de credito/status anexada a DCOMPs reais importadas. |
+| `src/__tests__/storeImportQuality.test.ts` | Preservacao de `ImportQualityReport` no store apos importacao. |
+
+Casos cobertos:
+
+- DCOMP judicial real recebe `tipoCreditoId = credito_judicial`, `dcompAdmitida = depende` e alerta `credito_judicial_exige_validacao_componentes`;
+- DCOMP real com status processual analisado recebe status consultivo bloqueado para edicao/cancelamento quando aplicavel;
+- `ImportQualityReport` e transportado para o estado sem forcar recalculo quando a importacao ja veio recalculada do worker.
+
+Resultado dos gates:
+
+- `npm run test`: aprovado, 9 arquivos de teste, 36 testes;
+- `npm run lint`: aprovado;
+- `npm run build`: aprovado.
+
+## Rodada de Automacao Fase 3 Expandida - 2026-06-07
+
+Novo teste real:
+
+| Arquivo de teste | Cobertura |
+| --- | --- |
+| `src/services/normativo/__tests__/selicService.real.test.ts` | `SelicService` com DCOMPs reais importadas da planilha mais recente. |
+
+Casos cobertos:
+
+- saldo negativo IRPJ real com taxa injetada retorna `statusCalculo = normativo`;
+- saldo negativo CSLL real com taxa injetada retorna `statusCalculo = normativo`;
+- pagamento indevido a maior real com taxa injetada retorna `statusCalculo = normativo`;
+- contribuicao previdenciaria indevida (CPIM) real retorna `statusCalculo = normativo`;
+- pagamento indevido eSocial real retorna `statusCalculo = normativo`;
+- termo inicial do saldo negativo e derivado do periodo de apuracao real;
+- termo final usa a data de transmissao original herdada da linhagem;
+- credito judicial real sem componentes retorna `dados_insuficientes`;
+- ausencia de taxa SELIC normativa pode retornar fallback `estimativa_historica` com `fator_historico_identificado`.
+
+Resultado dos gates:
+
+- `npm run test`: aprovado, 10 arquivos de teste, 44 testes;
+- `npm run lint`: aprovado;
+- `npm run build`: aprovado.
+
 ### Rodada de Especificacao de Fixtures SELIC - 2026-06-07
 
 Fonte tecnica de taxa:

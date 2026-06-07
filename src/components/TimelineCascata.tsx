@@ -3,6 +3,9 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { CadeiaRelacional, DCOMP } from '../models/types';
 import { isVigente, isBloqueado, isPedidoCancelamento } from '../utils/statusHelper';
+import { classificarTipoCredito } from '../services/normativo/creditRules';
+import { classificarStatusProcessamento } from '../services/normativo/statusRules';
+import { verificarVedacaoCredito } from '../services/normativo/vedacaoCompensacaoService';
 import { useStore } from '../store';
 import { ModalEdicao } from './ModalEdicao';
 import { ModalHipotetica } from './ModalHipotetica';
@@ -71,10 +74,14 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       return acc + diff;
     }, 0);
 
-  // Calcula a soma do Crédito Original Usado (apenas nas Vigentes)
-  const totalCreditoUtilizado = cadeia.dcomps
-    .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id))
-    .reduce((acc, d) => acc + d.valorUtilizadoPerdcomp, 0);
+    // Calcula a soma do Crédito Original Usado (apenas nas Vigentes)
+    const totalCreditoUtilizado = cadeia.dcomps
+      .filter(d => isVigente(d.situacao, d.tipoDocumento, d.id))
+      .reduce((acc, d) => {
+        const isPurePER = (d.tipoDocumento === 'Pedido Restituição' || d.tipoDocumento === 'Pedido de Restituição') && (!d.debitos || d.debitos.length === 0);
+        const effectiveUtilizado = isPurePER ? 0 : d.valorUtilizadoPerdcomp;
+        return acc + effectiveUtilizado;
+      }, 0);
 
   const docsARetificar = cadeia.dcomps.filter(d => d.statusCascata === 'RETIFICAR').length;
   const docsRetificadosUsuario = cadeia.dcomps.filter(d => d.isManuallyEdited).length;
@@ -95,6 +102,46 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       if (!confirmSave) return;
     }
 
+    // Coleta de Metadados de Auditoria
+    const fontesSet = new Set<string>();
+    const hipotesesSet = new Set<string>();
+    const dadosAusentesSet = new Set<string>();
+    let hasEstimativa = false;
+    let hasDadosInsuficientes = false;
+
+    cadeia.dcomps.forEach(d => {
+      const res = d.resultadoSelic;
+      if (res) {
+        if (res.statusCalculo === 'estimativa_historica') hasEstimativa = true;
+        if (res.statusCalculo === 'dados_insuficientes') hasDadosInsuficientes = true;
+        
+        res.fontesNormativas.forEach(f => fontesSet.add(JSON.stringify(f)));
+        res.dadosAusentes?.forEach(da => dadosAusentesSet.add(da));
+      }
+    });
+
+    let statusGlobal: 'normativo' | 'estimativa_historica' | 'parcial' | 'dados_insuficientes' = 'normativo';
+    if (hasDadosInsuficientes && hasEstimativa) statusGlobal = 'parcial';
+    else if (hasDadosInsuficientes) statusGlobal = 'dados_insuficientes';
+    else if (hasEstimativa) statusGlobal = 'estimativa_historica';
+
+    if (hasEstimativa || hasDadosInsuficientes) {
+      hipotesesSet.add('Cálculos amparados em fator histórico devido à insuficiência de dados no relatório e-CAC para aplicação estrita da SELIC.');
+    }
+
+    const metadadosAuditoria = {
+      versaoMotorCalculo: '1.0.0-beta',
+      statusCalculoGlobal: statusGlobal,
+      fontesNormativas: Array.from(fontesSet).map(f => JSON.parse(f)),
+      tabelaSelic: {
+        fonte: 'RFB / SelicMensal',
+        emitidaEm: '06/2026',
+        coberturaAte: '06/2026'
+      },
+      hipoteses: Array.from(hipotesesSet),
+      dadosAusentes: Array.from(dadosAusentesSet)
+    };
+
     const kpis = {
       saldoOriginalTotal: totalCreditoOriginal,
       saldoAtualizadoTotal: totalCreditoAtual,
@@ -104,7 +151,7 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       saldoOriginalRestanteNovo: saldoFinal
     };
 
-    salvarSimulacaoCadeia(cadeia.id, kpis);
+    salvarSimulacaoCadeia(cadeia.id, kpis, metadadosAuditoria);
     alert('Simulação da cadeia salva com sucesso!');
   };
 
@@ -150,10 +197,25 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
     });
   }, [cadeia.dcomps, filtroBusca, filtroStatus, apenasDetalhadores]);
 
+  const classificacaoCredito = useMemo(() => classificarTipoCredito(cadeia.tipoCredito || ''), [cadeia.tipoCredito]);
+  const vedacoesCredito = useMemo(() => {
+    // Como a vedação é baseada no tipo e isso está na raiz da DCOMP, pegamos a DCOMP vigente principal ou apenas passamos o tipo.
+    // O vedacaoCompensacaoService espera uma DCOMP, mas avalia o tipoCredito. Vamos criar um mock rápido:
+    return verificarVedacaoCredito({ tipoCredito: cadeia.tipoCredito });
+  }, [cadeia.tipoCredito]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div>
-        <h2 style={{ marginBottom: '1rem' }}>Simulador de Cascata - {cadeia.tipoCredito}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Simulador de Cascata - {cadeia.tipoCredito}</h2>
+          {classificacaoCredito.alertas.length > 0 && (
+            <span className="status-led status-danger" data-tooltip={classificacaoCredito.alertas.join(' | ')}>RESTRIÇÃO NORMATIVA</span>
+          )}
+          {vedacoesCredito.length > 0 && (
+            <span className="status-led status-danger" data-tooltip={vedacoesCredito.map(v => v.mensagem).join(' | ')}>⚠️ VEDAÇÃO DE CRÉDITO</span>
+          )}
+        </div>
         
         {/* KPI Panel Extracted */}
         <CascataKpis 
@@ -212,6 +274,12 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                 const creditoDetalhado = dcomp.valorTotalCreditoDetalhado;
                 const creditoDataTransmissao = dcomp.valorCreditoDataTransmissao;
                 const saldoProx = dcomp.saldoCreditoOriginalCalculado || 0;
+
+                const statusClassificado = classificarStatusProcessamento({
+                  status: dcomp.situacao,
+                  tipoDocumento: dcomp.tipoDocumento || 'desconhecido'
+                });
+                const alertasStatus = statusClassificado.motivos.filter(m => m !== 'documento_analisado_ou_em_discussao' && m !== 'documento_nao_vigente');
 
                 const getTooltip = (status: string, bloq: boolean, vig: boolean) => {
                   if (status === 'RETIFICAR') return 'Consome mais crédito que o saldo disponível.';
@@ -272,6 +340,12 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                               </span>
                             );
                           })()}
+                          
+                          {alertasStatus.length > 0 && (
+                            <span className="status-led status-warning" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip={alertasStatus.join(' | ')}>
+                              ATENÇÃO (STATUS)
+                            </span>
+                          )}
                           
                           {isPedidoCancelamento(dcomp.id, dcomp.tipoDocumento) && (() => {
                             const canceladaPorMim = cadeia.dcomps.find(x => x.numeroRetificador === dcomp.id);
@@ -344,18 +418,37 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                       </td>
 
                       <td className="text-right">
-                         {dcomp.valorUtilizadoPerdcompOriginal !== valorCreditoOriginalUsado ? (
-                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                             <div style={{ textDecoration: 'line-through', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
-                               {formatCurrency(dcomp.valorUtilizadoPerdcompOriginal)}
-                             </div>
-                             <div style={{ fontWeight: 600, color: 'var(--color-success)' }}>
-                               NOVO: {formatCurrency(valorCreditoOriginalUsado)}
-                             </div>
-                           </div>
-                         ) : (
-                           <div style={{ fontWeight: 600 }}>{formatCurrency(valorCreditoOriginalUsado)}</div>
-                         )}
+                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                           {dcomp.valorUtilizadoPerdcompOriginal !== valorCreditoOriginalUsado ? (
+                             <>
+                               <div style={{ textDecoration: 'line-through', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                                 {formatCurrency(dcomp.valorUtilizadoPerdcompOriginal)}
+                               </div>
+                               <div style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+                                 NOVO: {formatCurrency(valorCreditoOriginalUsado)}
+                               </div>
+                             </>
+                           ) : (
+                             <div style={{ fontWeight: 600 }}>{formatCurrency(valorCreditoOriginalUsado)}</div>
+                           )}
+                           
+                           {/* Badge Consultivo da Auditoria SELIC */}
+                           {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'normativo' && (
+                             <span className="status-led status-success" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip="Cálculo Normativo Verificado">
+                               ✓ SELIC Exata
+                             </span>
+                           )}
+                           {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' && (
+                             <span className="status-led status-warning" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip="Estimativa Histórica (Baseada na RFB)">
+                               ⚠️ Estimativa
+                             </span>
+                           )}
+                           {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'dados_insuficientes' && (
+                             <span className="status-led status-danger" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip="Dados Insuficientes para Cálculo Seguro">
+                               ! Dados Insuf.
+                             </span>
+                           )}
+                         </div>
                       </td>
 
                       <td className="text-right">
@@ -468,8 +561,7 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       {modalHipoteticaAberta && (
         <ModalHipotetica 
           onClose={() => setModalHipoteticaAberta(false)}
-          onConfirm={(debitosSimulados) => {
-            const dataHipotetica = new Date();
+          onConfirm={(debitosSimulados, dataHipotetica) => {
             useStore.getState().adicionarDcompHipotetica(cadeia.id, debitosSimulados, dataHipotetica);
           }}
         />

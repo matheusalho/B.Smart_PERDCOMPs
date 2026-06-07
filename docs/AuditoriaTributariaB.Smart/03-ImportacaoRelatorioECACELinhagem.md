@@ -307,3 +307,93 @@ Regras:
 - Relatorio de qualidade da importacao mostra documentos sem cadeia e campos ausentes.
 - Datas ausentes/invalidas nao viram data atual em regra normativa.
 - Valores ausentes nao viram zero normativo sem alerta.
+
+## Rodada de Implementacao Fase 2 Parcial - 2026-06-07
+
+Escopo autorizado pelo usuario:
+
+- iniciar Fase 2 pelo `ExcelParser.ts` e modelo de metadados opcionais;
+- usar planilhas reais da pasta `Sheets/`, nao planilha sintetica;
+- manter compatibilidade com planilhas antigas cujos cabecalhos foram alterados;
+- nao alterar a cascata ativa nem recalcular campos `...Original`.
+
+Implementacao realizada:
+
+- `src/models/types.ts` recebeu `MetadadosCreditoImportado` e `ImportQualityReport`;
+- `DCOMP` recebeu `metadadosCreditoImportado?: MetadadosCreditoImportado`;
+- `parseExcelFile` passou a retornar `importQualityReport` alem de `cadeias` e `empresa`;
+- `ExcelParser.ts` passou a preservar metadados opcionais:
+  - `dataArrecadacaoCredito`;
+  - `competenciaCredito`;
+  - `tipoCompetenciaCredito`;
+  - `numeroPagamento`;
+  - `periodoApuracaoDarf`;
+  - `processoJudicial`;
+  - `processoHabilitacao`;
+  - `processoAdministrativo`;
+  - `numeroPerOriginal`.
+- `ExcelParser.ts` passou a reportar documentos ignorados por ausencia de cadeia relacional, sem inclui-los na cascata.
+
+Testes reais criados:
+
+- `src/services/__tests__/ExcelParser.test.ts`;
+- o teste percorre todos os arquivos `.xlsx` presentes em `C:\Projetos\B.Smart_PERDCOMPs\Sheets`;
+- a rodada local encontrou 4 arquivos `.xlsx`, embora a anotacao operacional do usuario mencione 3 planilhas;
+- todos os arquivos reais continuam importando com pelo menos uma cadeia, DCOMP e debito;
+- a planilha mais recente por data de modificacao valida:
+  - 1472 linhas de processamento;
+  - 1443 DCOMPs carregadas;
+  - 565 cadeias carregadas;
+  - 4641 debitos efetivamente carregados em DCOMPs da cascata;
+  - 29 documentos ignorados por `sem_cadeia_relacional`;
+  - primeiro documento ignorado: `20412.42534.150526.1.3.24-5753`;
+  - metadados judiciais reais da DCOMP `32552.06818.210225.1.3.57-2529`.
+
+Gates executados:
+
+- `npm run test`: aprovado, 8 arquivos de teste, 34 testes;
+- `npm run lint`: aprovado;
+- `npm run build`: aprovado.
+
+Observacoes:
+
+- `linhasDebitos` no `ImportQualityReport` registra linhas brutas da aba de debitos;
+- `debitosCarregados` registra apenas debitos efetivamente vinculados a DCOMPs carregadas na cascata;
+- a diferenca observada na planilha real mais recente e relevante para auditoria: ha linhas de debito que nao entram na cascata carregada;
+- `tsconfig.app.json` passou a excluir `src/**/__tests__/**` do build da aplicacao, mantendo os testes sob responsabilidade do Vitest.
+
+## Rodada de Implementacao Fase 2 Consultiva - 2026-06-07
+
+Escopo executado:
+
+- `ExcelParser.ts` passou a anexar `classificacaoCreditoConsultiva` por DCOMP usando `classificarTipoCredito`;
+- `ExcelParser.ts` passou a anexar `statusProcessamentoConsultivo` por DCOMP usando `classificarStatusProcessamento`;
+- `excelWorker.ts` passou a transportar `importQualityReport` junto de `cadeias` e `empresa`;
+- `UploadComponent.tsx` passou a entregar `importQualityReport` para o store;
+- `store.ts` passou a preservar `importQualityReport` em `SimulacaoState`;
+- `limparDados` tambem limpa `importQualityReport`.
+
+Limites preservados:
+
+- classificacoes sao consultivas e nao bloqueiam importacao;
+- nao houve mudanca em `CalculoService.ts`;
+- nao houve recalculo normativo ativo;
+- nao houve alteracao de PDF ou UI visivel nesta rodada;
+- campos `...Original` permanecem como base importada.
+
+Testes adicionados/atualizados:
+
+- `ExcelParser.test.ts` valida DCOMP judicial real com `tipoCreditoId = credito_judicial`, `dcompAdmitida = depende` e alerta de componentes judiciais;
+- `ExcelParser.test.ts` valida status consultivo de DCOMP real em estado analisado/bloqueado;
+- `storeImportQuality.test.ts` valida preservacao de `ImportQualityReport` no estado.
+
+Gates executados:
+
+- `npm run test`: aprovado, 9 arquivos de teste, 36 testes;
+- `npm run lint`: aprovado;
+- `npm run build`: aprovado.
+
+Observacoes:
+
+- O build manteve apenas avisos de chunk acima de 500 kB e plugin timings do Vite.
+- Esta rodada conclui o nucleo de Fase 2 consultiva; ainda falta decidir quando/como exibir alertas de qualidade/classificacao em UI/PDF.

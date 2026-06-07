@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Sparkles, Plus, Trash2, Filter } from 'lucide-react';
 import codigosReceitaData from '../data/CodigosDeReceita.json';
+import { verificarVedacaoDebito } from '../services/normativo/vedacaoCompensacaoService';
 
 // Criar dicionário O(1)
 const codigosReceitaDict = codigosReceitaData.reduce((acc, curr) => {
@@ -30,7 +31,7 @@ interface DebitoForm {
 
 interface Props {
   onClose: () => void;
-  onConfirm: (debitos: DebitoSimulado[]) => void;
+  onConfirm: (debitos: DebitoSimulado[], dataTransmissao: Date) => void;
 }
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -49,6 +50,7 @@ export const ModalHipotetica: React.FC<Props> = ({ onClose, onConfirm }) => {
   const [debitos, setDebitos] = useState<DebitoForm[]>([
     createEmptyDebito('debito-inicial')
   ]);
+  const [dataTransmissaoStr, setDataTransmissaoStr] = useState<string>(new Date().toISOString().split('T')[0]);
   const [filtroOrigem, setFiltroOrigem] = useState<string>('Todas');
   const origens = ['Todas', 'eSocial', 'EFD-Reinf CP', 'EFD-Reinf RET', 'Sero', 'MIT'];
 
@@ -99,7 +101,16 @@ export const ModalHipotetica: React.FC<Props> = ({ onClose, onConfirm }) => {
       return;
     }
 
-    onConfirm(parsedDebitos);
+    if (!dataTransmissaoStr) {
+      alert("Por favor, preencha a Data de Transmissão Auditável.");
+      return;
+    }
+
+    // Cria a data no timezone local usando a string 'YYYY-MM-DD'
+    const [year, month, day] = dataTransmissaoStr.split('-').map(Number);
+    const dataHipotetica = new Date(year, month - 1, day);
+
+    onConfirm(parsedDebitos, dataHipotetica);
     onClose();
   };
 
@@ -170,21 +181,33 @@ export const ModalHipotetica: React.FC<Props> = ({ onClose, onConfirm }) => {
             <h3 style={{ margin: 0 }}>PER/DCOMP Hipotética (Múltiplos Débitos)</h3>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.5', maxWidth: '60%' }}>
+            <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.5', maxWidth: '50%' }}>
               Simule o comportamento da cascata injetando uma nova declaração (futura) para abater um conjunto específico de débitos detalhados.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Filter size={16} className="text-muted" />
-              <select
-                className="input-field"
-                style={{ padding: '0.5rem 1rem', minWidth: '180px', fontSize: '0.85rem' }}
-                value={filtroOrigem}
-                onChange={e => setFiltroOrigem(e.target.value)}
-              >
-                {origens.map(o => (
-                  <option key={o} value={o}>{o === 'Todas' ? 'Todas as Origens' : o}</option>
-                ))}
-              </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="text-muted" style={{ fontSize: '0.85rem' }}>Transmissão Auditável:</span>
+                <input
+                  type="date"
+                  className="input-field"
+                  style={{ padding: '0.5rem', fontSize: '0.85rem' }}
+                  value={dataTransmissaoStr}
+                  onChange={e => setDataTransmissaoStr(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Filter size={16} className="text-muted" />
+                <select
+                  className="input-field"
+                  style={{ padding: '0.5rem 1rem', minWidth: '180px', fontSize: '0.85rem' }}
+                  value={filtroOrigem}
+                  onChange={e => setFiltroOrigem(e.target.value)}
+                >
+                  {origens.map(o => (
+                    <option key={o} value={o}>{o === 'Todas' ? 'Todas as Origens' : o}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -286,6 +309,20 @@ export const ModalHipotetica: React.FC<Props> = ({ onClose, onConfirm }) => {
               >
                 <Trash2 size={18} />
               </button>
+              
+              {/* Alertas de Vedação */}
+              {(() => {
+                const dummyDebito = { codigoReceita: debito.codigoReceita || '', dataVencimento: debito.dataVencimento || '' };
+                const alertas = verificarVedacaoDebito(dummyDebito, dataTransmissaoStr ? new Date(dataTransmissaoStr + 'T00:00:00') : new Date());
+                if (alertas.length > 0) {
+                  return (
+                    <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', color: 'var(--color-danger)', fontSize: '0.85rem' }}>
+                      <strong>⚠️ Restrição Normativa:</strong> {alertas.map(a => a.mensagem).join(' ')}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           )})}
         </div>

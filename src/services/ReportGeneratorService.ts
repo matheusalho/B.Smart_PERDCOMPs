@@ -1,7 +1,7 @@
-
-import type { SimulacaoSalva, CadeiaRelacional } from '../models/types';
+import type { SimulacaoSalva, CadeiaRelacional, DCOMP } from '../models/types';
 import { format } from 'date-fns';
 import { isVigente } from '../utils/statusHelper';
+import { verificarVedacaoCredito, verificarVedacaoDebito } from './normativo/vedacaoCompensacaoService';
 import type { jsPDF as JsPDFDocument } from 'jspdf';
 import type { RowInput, Table } from 'jspdf-autotable';
 
@@ -218,11 +218,80 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
   let startY = getLastAutoTableFinalY(doc, currentY + 5) + 15;
 
+  // NOVO BLOCO: Premissas e Metodologia Global
+  doc.addPage();
+  startY = 20;
+  doc.setFontSize(14);
+  doc.setTextColor(baleraBlue[0], baleraBlue[1], baleraBlue[2]);
+  doc.text('Declaração de Premissas e Metodologia', 14, startY);
+  startY += 10;
+
+  doc.setFontSize(10);
+  doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+  doc.text('Os valores apresentados neste relatório obedecem às seguintes classes metodológicas:', 14, startY);
+  startY += 6;
+  doc.text('1. Valores Importados: Provenientes diretamente do e-CAC (arquivos originais).', 14, startY);
+  startY += 6;
+  doc.text('2. Valores Calculados Normativamente: Aplicam a taxa SELIC oficial baseada em dados suficientes.', 14, startY);
+  startY += 6;
+  doc.text('3. Valores Estimados / Históricos: Utilizam fator de fallback por insuficiência de dados.', 14, startY);
+  startY += 6;
+  doc.text('4. Valores Simulados: Inseridos ou editados manualmente pelo usuário na plataforma.', 14, startY);
+  
+  startY += 12;
+
+  // Analisamos todas as simulações para extrair alertas globais de auditoria
+  const todosAlertas = new Set<string>();
+  let hasInsuficientes = false;
+  let hasEstimativa = false;
+  simulacoes.forEach(sim => {
+    // Adicionar Alertas de Vedação Globais
+    const vedacoesCredito = verificarVedacaoCredito({ tipoCredito: sim.tipoCredito });
+    vedacoesCredito.forEach(v => todosAlertas.add(`Vedação de Crédito (${v.codigo}): ${v.mensagem}`));
+
+    sim.dcomps.forEach(dcomp => {
+      dcomp.debitos.forEach(deb => {
+        const vedacoesDeb = verificarVedacaoDebito(deb, dcomp.dataTransmissaoOriginal || new Date());
+        vedacoesDeb.forEach(v => todosAlertas.add(`Vedação de Débito ${deb.codigoReceita} (${v.codigo}): ${v.mensagem}`));
+      });
+    });
+
+    const meta = sim.metadadosAuditoria;
+    if (meta) {
+      if (meta.statusCalculoGlobal === 'dados_insuficientes' || meta.statusCalculoGlobal === 'parcial') hasInsuficientes = true;
+      if (meta.statusCalculoGlobal === 'estimativa_historica' || meta.statusCalculoGlobal === 'parcial') hasEstimativa = true;
+      meta.hipoteses.forEach(h => todosAlertas.add(h));
+      meta.dadosAusentes.forEach(d => todosAlertas.add(`Dado ausente detectado: ${d}`));
+    }
+  });
+
+  if (hasInsuficientes || hasEstimativa || todosAlertas.size > 0) {
+    if (hasInsuficientes || hasEstimativa) {
+        doc.setTextColor(dangerRed[0], dangerRed[1], dangerRed[2]);
+        doc.text('Aviso de Auditoria: Algumas cadeias neste relatório utilizam cálculos estimados ou possuem insuficiência de dados.', 14, startY);
+        startY += 8;
+    }
+    
+    const alertasArray = Array.from(todosAlertas).map(a => [a]);
+    if (alertasArray.length > 0) {
+      autoTable(doc, {
+        startY: startY,
+        head: [['Risco e Limitações Identificados']],
+        body: alertasArray,
+        headStyles: { fillColor: dangerRed, textColor: 255 },
+        styles: { fontSize: 9, cellPadding: 3, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor }
+      });
+      startY = getLastAutoTableFinalY(doc, startY) + 15;
+    }
+  }
+
   simulacoes.forEach((simulacao, index) => {
     // Nova página se não couber a próxima simulação
-    if (index > 0 && startY > pageHeight - 60) {
-      doc.addPage();
-      startY = 20;
+    if (startY > pageHeight - 60 || index === 0) {
+      if (index > 0 || startY > pageHeight - 60) {
+         doc.addPage();
+         startY = 20;
+      }
     } else if (index > 0) {
       startY += 10;
       doc.setDrawColor(tableBorder[0], tableBorder[1], tableBorder[2]);
@@ -287,6 +356,12 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
     const dcompsEditadas = simulacao.dcomps.filter(d => d.isManuallyEdited);
 
+    const getStatusSelicStr = (d: DCOMP) => {
+      if (!d.resultadoSelic) return 'N/A';
+      const st = d.resultadoSelic.statusCalculo;
+      return st === 'normativo' ? 'Normativo' : st === 'estimativa_historica' ? 'Estimativa' : 'Dados Insuf.';
+    };
+
     if (dcompsEditadas.length === 0) {
       doc.setFontSize(10);
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
@@ -322,7 +397,6 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       });
       startY = getLastAutoTableFinalY(doc, startY) + 14;
 
-      // Adicionar as tabelas comparativas "Antes e Depois" para as edições manuais
       const editadasOriginalBody: RowInput[] = [];
       const editadasNovoBody: RowInput[] = [];
 
@@ -331,30 +405,30 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         const origCreditoTransmissao = d.divergenciaDetalhes?.esperado ?? d.valorCreditoDataTransmissao;
         const origDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotalOriginal, 0);
         const origCreditoUsado = d.valorUtilizadoPerdcompOriginal;
-        const origSaldoProx = d.saldoCreditoOriginalAnterior ?? 0;
+        const origSaldo = origCreditoTransmissao - origCreditoUsado;
 
         const novoCreditoDetalhado = d.valorTotalCreditoDetalhado;
-        const novoCreditoTransmissao = d.divergenciaDetalhes?.calculado ?? d.valorCreditoDataTransmissao;
+        const novoCreditoTransmissao = d.valorCreditoDataTransmissao;
         const novoDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0);
         const novoCreditoUsado = d.valorUtilizadoPerdcomp;
-        const novoSaldoProx = d.saldoCreditoOriginalCalculado ?? 0;
+        const novoSaldo = d.saldoCreditoOriginalCalculado ?? 0;
 
         editadasOriginalBody.push([
-          d.id,
+          `${d.id}\n${getStatusSelicStr(d)}`,
           formatCurrency(origCreditoDetalhado),
           formatCurrency(origCreditoTransmissao),
           formatCurrency(origDebitos),
           formatCurrency(origCreditoUsado),
-          formatCurrency(origSaldoProx)
+          formatCurrency(origSaldo)
         ]);
 
         editadasNovoBody.push([
-          d.id,
+          `${d.id}\n${getStatusSelicStr(d)}`,
           formatCurrency(novoCreditoDetalhado),
           formatCurrency(novoCreditoTransmissao),
           formatCurrency(novoDebitos),
           formatCurrency(novoCreditoUsado),
-          formatCurrency(novoSaldoProx)
+          formatCurrency(novoSaldo)
         ]);
       });
 
@@ -365,7 +439,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       doc.setFontSize(11);
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text('Valores Anteriores (Originais)', 14, startY);
+      doc.text('Valores Importados e Calculados Históricos', 14, startY);
       startY += 4;
 
       autoTable(doc, {
@@ -387,7 +461,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       doc.setFontSize(11);
       doc.setTextColor(baleraBlue[0], baleraBlue[1], baleraBlue[2]);
-      doc.text('Novos Valores Corretos', 14, startY);
+      doc.text('Valores Simulados / Recalculados', 14, startY);
       startY += 4;
 
       autoTable(doc, {
@@ -429,43 +503,43 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       const colateralOriginalBody: RowInput[] = [];
       const colateralNovoBody: RowInput[] = [];
 
-      dcompsAfetadas.forEach(d => {
-        // Obter os valores antigos
+      simulacao.dcomps.forEach(d => {
+        if (d.indicadorCredito === 'Hipotético') return;
+        
         const origCreditoDetalhado = d.valorTotalCreditoDetalhadoOriginal;
         const origCreditoTransmissao = d.divergenciaDetalhes?.esperado ?? d.valorCreditoDataTransmissao;
         const origDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotalOriginal, 0);
         const origCreditoUsado = d.valorUtilizadoPerdcompOriginal;
-        const origSaldoProx = d.saldoCreditoOriginalAnterior ?? 0;
+        const origSaldo = origCreditoTransmissao - origCreditoUsado;
 
-        // Obter os valores novos
         const novoCreditoDetalhado = d.valorTotalCreditoDetalhado;
-        const novoCreditoTransmissao = d.divergenciaDetalhes?.calculado ?? d.valorCreditoDataTransmissao;
+        const novoCreditoTransmissao = d.valorCreditoDataTransmissao;
         const novoDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0);
         const novoCreditoUsado = d.valorUtilizadoPerdcomp;
-        const novoSaldoProx = d.saldoCreditoOriginalCalculado ?? 0;
+        const novoSaldo = d.saldoCreditoOriginalCalculado ?? 0;
 
         colateralOriginalBody.push([
-          d.id,
+          `${d.id}\n${getStatusSelicStr(d)}`,
           formatCurrency(origCreditoDetalhado),
           formatCurrency(origCreditoTransmissao),
           formatCurrency(origDebitos),
           formatCurrency(origCreditoUsado),
-          formatCurrency(origSaldoProx)
+          formatCurrency(origSaldo)
         ]);
 
         colateralNovoBody.push([
-          d.id,
+          `${d.id}\n${getStatusSelicStr(d)}`,
           formatCurrency(novoCreditoDetalhado),
           formatCurrency(novoCreditoTransmissao),
           formatCurrency(novoDebitos),
           formatCurrency(novoCreditoUsado),
-          formatCurrency(novoSaldoProx)
+          formatCurrency(novoSaldo)
         ]);
       });
 
       doc.setFontSize(11);
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
-      doc.text('Valores Anteriores (Originais)', 14, startY);
+      doc.text('Valores Importados e Calculados Históricos', 14, startY);
       startY += 4;
 
       autoTable(doc, {
@@ -487,7 +561,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       doc.setFontSize(11);
       doc.setTextColor(dangerRed[0], dangerRed[1], dangerRed[2]);
-      doc.text('Novos Valores Corretos (Colaterais)', 14, startY);
+      doc.text('Valores Simulados / Recalculados (Colaterais)', 14, startY);
       startY += 4;
 
       autoTable(doc, {

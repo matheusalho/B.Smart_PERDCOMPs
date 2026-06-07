@@ -1,6 +1,8 @@
 import type { CadeiaRelacional } from '../models/types';
 import selicData from '../selic.json';
 import { isVigente, isBloqueado } from '../utils/statusHelper';
+import { calcularSelicRastreavel } from './normativo/selicService';
+import { obterTaxaSelicAcumulada } from './normativo/selicProvider';
 
 const getSelicMensal = (ano: string, mes: string): number => {
   const data = (selicData as Record<string, Record<string, number>>);
@@ -100,12 +102,13 @@ export const recalcularCadeia = (cadeia: CadeiaRelacional): CadeiaRelacional => 
 
   // LÓGICA REVISADA: "Soma dos Detalhadores (Pool Global)"
   // Uma DCOMP é Detalhadora se sua coluna `numeroDcompDetalhamento` estiver vazia ou for igual ao seu próprio ID
-  // e se ela for Vigente (a coluna "Retificado ou Cancelado Por" já é coberta pelo isVigente).
+  // e se ela for Vigente. Adicionalmente, DCOMPs puras (Decl. Compensação) não são detalhadoras a menos que sejam a raiz.
   let saldoOriginalDisponivel = 0;
   
   for (const dcomp of dcompsOrdenadas) {
     if (isVigente(dcomp.situacao, dcomp.tipoDocumento, dcomp.id)) {
-      const isDetalhador = !dcomp.numeroDcompDetalhamento || dcomp.numeroDcompDetalhamento === dcomp.id;
+      const isDetalhador = (!dcomp.numeroDcompDetalhamento || dcomp.numeroDcompDetalhamento === dcomp.id);
+      
       if (isDetalhador) {
         // Usamos o valorOriginal se existir, ou o atual, para compor o Pool
         saldoOriginalDisponivel += (dcomp.valorTotalCreditoDetalhadoOriginal || dcomp.valorTotalCreditoDetalhado);
@@ -184,26 +187,46 @@ export const recalcularCadeia = (cadeia: CadeiaRelacional): CadeiaRelacional => 
       // O Crédito na Data de Transmissão é literalmente o saldo original transferido da DCOMP anterior
       dcomp.valorCreditoDataTransmissao = saldoOriginalDisponivel;
       
-    } else if (dcomp.isManuallyEdited) {
-      // Se o usuário editou os débitos, precisamos descobrir o novo "Crédito Original Utilizado"
-      // Fator SELIC = Soma dos Débitos Originais / Crédito Original Utilizado Histórico
+    } else {
       const totalDebitosOriginal = dcomp.debitos.reduce((acc, debito) => acc + debito.valorTotalOriginal, 0);
-      const fatorSelic = (totalDebitosOriginal > 0 && dcomp.valorUtilizadoPerdcompOriginal > 0) 
+      const fatorHistorico = (totalDebitosOriginal > 0 && dcomp.valorUtilizadoPerdcompOriginal > 0) 
         ? (totalDebitosOriginal / dcomp.valorUtilizadoPerdcompOriginal) 
         : 1;
-      
-      // O novo valor original utilizado é a nova soma atualizada dos débitos descapitalizada pelo fator SELIC
-      dcomp.valorUtilizadoPerdcomp = valorUtilizadoReal / fatorSelic;
-    } else {
-      // Se não foi editado, o valor histórico permanece intacto
-      dcomp.valorUtilizadoPerdcomp = dcomp.valorUtilizadoPerdcompOriginal;
+
+      // Integração Normativa: tenta calcular a SELIC rastreável
+      const resultadoSelic = calcularSelicRastreavel({
+        dcomp,
+        totalDebitosDocumento: valorUtilizadoReal,
+        taxaSelicProvider: obterTaxaSelicAcumulada,
+        fatorHistorico,
+      });
+
+      dcomp.resultadoSelic = resultadoSelic;
+
+      if (dcomp.isManuallyEdited) {
+        if (resultadoSelic.statusCalculo === 'normativo' && resultadoSelic.valor) {
+          dcomp.valorUtilizadoPerdcomp = resultadoSelic.valor.creditoOriginalUtilizadoCalculado;
+        } else {
+          // Fallback para aproximação histórica
+          dcomp.valorUtilizadoPerdcomp = valorUtilizadoReal / fatorHistorico;
+        }
+      } else {
+        // Se não foi editado, SEMPRE mantém o valor histórico exato da RFB
+        dcomp.valorUtilizadoPerdcomp = dcomp.valorUtilizadoPerdcompOriginal;
+      }
     }
 
     // Se for vigente, o valor consumido ABATE DO SALDO ORIGINAL.
-    const novoSaldo = vigente ? (saldoOriginalDisponivel - dcomp.valorUtilizadoPerdcomp) : saldoOriginalDisponivel;
+    // Correção eSocial: Pedido Restituição puro não consome saldo diretamente, ele apenas espelha a soma dos DCOMPs. 
+    // Subtrair aqui causaria dupla contagem.
+    const isPurePER = (dcomp.tipoDocumento === 'Pedido Restituição' || dcomp.tipoDocumento === 'Pedido de Restituição') && (!dcomp.debitos || dcomp.debitos.length === 0);
+    const effectiveUtilizado = isPurePER ? 0 : dcomp.valorUtilizadoPerdcomp;
+    const effectiveUtilizadoOriginal = isPurePER ? 0 : dcomp.valorUtilizadoPerdcompOriginal;
+
+    const novoSaldo = vigente ? (saldoOriginalDisponivel - effectiveUtilizado) : saldoOriginalDisponivel;
     dcomp.saldoCreditoOriginalCalculado = novoSaldo;
 
-    const saldoAntigo = vigente ? (saldoAntigoDisponivel - dcomp.valorUtilizadoPerdcompOriginal) : saldoAntigoDisponivel;
+    const saldoAntigo = vigente ? (saldoAntigoDisponivel - effectiveUtilizadoOriginal) : saldoAntigoDisponivel;
     dcomp.saldoCreditoOriginalAnterior = saldoAntigo;
 
     if (i === 0) {

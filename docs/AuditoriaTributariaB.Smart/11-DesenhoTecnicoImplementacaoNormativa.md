@@ -438,9 +438,126 @@ Antes de aceitar implementacao:
 
 ## Estado
 
-- Status: Solucao proposta.
-- Implementacao: nao autorizada neste ciclo.
-- Proximo passo apos autorizacao: Fase 1, com infraestrutura de testes, contratos puros e fixtures normativas antes de alterar calculo.
+- Status: Fase 1 implementada e revalidada.
+- Implementacao: autorizada pelo usuario em 2026-06-07, limitada a infraestrutura de testes, contratos e servicos puros.
+- Proximo passo apos revalidacao: revisar/autorizar Fase 2, com importacao de metadados opcionais e classificadores consultivos, ainda sem bloqueio duro.
+
+## Rodada de Implementacao Fase 1 - 2026-06-07
+
+Escopo executado:
+
+- adicionado Vitest e script `npm run test`;
+- criados contratos comuns em `src/services/normativo/types.ts`;
+- criada matematica SELIC pura com taxa injetada em `selicMath.ts`;
+- criados helpers puros de datas em `dateRules.ts`;
+- criada classificacao consultiva de creditos em `creditRules.ts`;
+- criada classificacao consultiva de status em `statusRules.ts`;
+- criada regra consultiva de cascata em `cascataRules.ts`;
+- criadas fixtures FX-SEL-001 a FX-SEL-008 em `fixturesSelic.ts`;
+- criada guarda de campos `...Original` em `originalValueGuards.ts`;
+- criados 7 arquivos de teste em `src/services/normativo/__tests__/`.
+
+Limites preservados:
+
+- nao houve integracao com `CalculoService.ts`;
+- nao houve alteracao de `ExcelParser.ts`;
+- nao houve alteracao de `store.ts`;
+- nao houve alteracao de UI ou PDF;
+- nenhum campo `...Original` foi recalculado ou sobrescrito;
+- fatores historicos atuais continuam inalterados no fluxo ativo.
+
+Validacao executada:
+
+- `npm run test`: aprovado, 7 arquivos, 28 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado.
+
+Riscos/observacoes:
+
+- `npm install --save-dev vitest` reportou 1 vulnerabilidade alta no `npm audit`; nao foi tratada nesta fase para evitar mudanca de dependencias fora do escopo.
+- O build emitiu avisos de chunk acima de 500 kB e plugin timings do Vite; sem falha.
+- A contagem do 361 dia do art. 152 foi implementada como helper preliminar com hipotese registrada `contagem_calendario_pendente_validacao_usuario`.
+- O art. 157 considera inicialmente sabado/domingo; feriados dependem de decisao/fonte de calendario na fase futura.
+
+## Rodada de Implementacao Fase 2 Parcial - 2026-06-07
+
+Escopo executado:
+
+- ampliado `src/models/types.ts` com `MetadadosCreditoImportado` e `ImportQualityReport`;
+- ampliado `DCOMP` com `metadadosCreditoImportado` opcional;
+- ampliado `parseExcelFile` para retornar `importQualityReport`;
+- preservados metadados opcionais de SELIC/credito importados da aba `Processamento PERDCOMP`;
+- documentados documentos ignorados por ausencia de cadeia relacional;
+- criada cobertura automatizada com planilhas reais da pasta `Sheets/`.
+
+Limites preservados:
+
+- nao houve alteracao de `CalculoService.ts`;
+- nao houve integracao dos classificadores consultivos ao fluxo ativo;
+- nao houve alteracao de `store.ts`, UI ou PDF;
+- campos `...Original` continuam sendo base importada, nao resultado calculado.
+
+Validacao executada:
+
+- `npm run test`: aprovado, 8 arquivos, 34 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado.
+
+Proximo passo recomendado:
+
+- continuar Fase 2 integrando `CreditoRulesService`, `StatusRulesService` e qualidade de importacao em modo consultivo, sem bloqueios duros e sem recalculo ativo.
+
+## Rodada de Implementacao Fase 2 Consultiva - 2026-06-07
+
+Escopo executado:
+
+- `CreditoRulesService` integrado ao parser como `classificacaoCreditoConsultiva`;
+- `StatusRulesService` integrado ao parser como `statusProcessamentoConsultivo`;
+- `ImportQualityReport` transportado pelo worker e preservado no store;
+- testes reais ampliados para validar classificacoes consultivas e preservacao do relatorio no estado.
+
+Limites preservados:
+
+- classificacoes nao alteram `statusCascata`;
+- classificacoes nao bloqueiam edicao/simulacao;
+- classificacoes nao alteram consumo de credito;
+- nenhuma regra normativa foi usada para recalcular valores importados.
+
+Validacao executada:
+
+- `npm run test`: aprovado, 9 arquivos, 36 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado.
+
+Proximo passo recomendado:
+
+- iniciar Fase 3 com `DateRulesService`/`SelicService` calculando resultado normativo somente quando dados e taxa forem suficientes, mantendo `estimativa_historica` como fallback rastreavel.
+
+## Rodada de Implementacao Fase 3 Parcial - 2026-06-07
+
+Escopo executado:
+
+- criado `SelicService` rastreavel em `src/services/normativo/selicService.ts`;
+- ampliado `DateRulesService` com termo final e extracao do fim do periodo de apuracao;
+- adicionada validacao real com DCOMPs importadas de `Sheets/`;
+- mantida a camada fora do fluxo ativo de cascata.
+
+Comportamento:
+
+- `normativo`: somente com dados e `taxaSelicDecimal` suficientes;
+- `dados_insuficientes`: quando faltar componente judicial, PER original, data material ou taxa;
+- `estimativa_historica`: quando a taxa normativa faltar, mas houver `fatorHistorico` informado como fallback operacional;
+- todos os resultados retornam metodo, origem do valor, dados usados, dados ausentes, hipoteses e alertas.
+
+Validacao executada:
+
+- `npm run test`: aprovado, 10 arquivos, 39 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado.
+
+Proximo passo recomendado:
+
+- ampliar a Fase 3 para pagamento indevido/eSocial, CPIM e art. 152 com dados reais/complementares; depois preparar Fase 4 de integracao controlada com `CalculoService`.
 
 ## Pedido de Autorizacao Recomendado
 

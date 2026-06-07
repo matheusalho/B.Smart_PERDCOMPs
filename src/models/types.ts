@@ -1,3 +1,6 @@
+import type { ResultadoAuditavel, FonteNormativa } from '../services/normativo/types';
+import type { SelicRastreavelResult } from '../services/normativo/selicService';
+
 export type SituaçãoProcessamento = 
   | 'Análise concluída'
   | 'Análise concluída com direito creditório reconhecido'
@@ -32,6 +35,34 @@ export interface DebitoOficial {
   cnpjDebito?: string;
 }
 
+export interface MetadadosCreditoImportado {
+  dataArrecadacaoCredito?: Date;
+  competenciaCredito?: string;
+  tipoCompetenciaCredito?: string;
+  numeroPagamento?: string;
+  periodoApuracaoDarf?: string;
+  processoJudicial?: string;
+  processoHabilitacao?: string;
+  processoAdministrativo?: string;
+  dataProtocoloPerOriginal?: Date;
+  numeroPerOriginal?: string;
+  origemDataProtocoloPerOriginal?: 'importada' | 'resolvida_por_linhagem' | 'informada_usuario';
+}
+
+export interface ImportQualityReport {
+  linhasProcessamento: number;
+  linhasDebitos: number;
+  dcompsCarregadas: number;
+  cadeiasCarregadas: number;
+  debitosCarregados: number;
+  documentosIgnorados: Array<{
+    numeroPerdcomp: string;
+    motivo: 'sem_cadeia_relacional' | 'sem_numero_perdcomp' | 'linha_invalida';
+    tipoCredito?: string;
+    situacao?: string;
+  }>;
+}
+
 export interface DCOMP {
   id: string; // Número do PER/DCOMP
   dataTransmissaoOriginal: Date; // A data que vale para cronologia e SELIC
@@ -53,6 +84,9 @@ export interface DCOMP {
   // Relações
   numeroRetificador?: string; // Se preenchido, é um DCOMP Não Vigente (substituído)
   numeroDcompDetalhamento?: string; // Número da PER/DCOMP com Detalhamento de Crédito
+  metadadosCreditoImportado?: MetadadosCreditoImportado;
+  classificacaoCreditoConsultiva?: CreditoClassificado;
+  statusProcessamentoConsultivo?: StatusProcessamentoClassificado;
   isManuallyEdited?: boolean; // Flag para KPI de Retificadas pelo Usuário
   idCadeiaRelacional: string;
   
@@ -68,6 +102,7 @@ export interface DCOMP {
     esperado: number;
     calculado: number;
   };
+  resultadoSelic?: ResultadoAuditavel<SelicRastreavelResult>;
 }
 
 export interface CadeiaRelacional {
@@ -87,6 +122,19 @@ export interface KpiSnapshot {
   saldoOriginalRestanteNovo: number;
 }
 
+export interface MetadadosAuditoriaRelatorio {
+  versaoMotorCalculo: string;
+  statusCalculoGlobal: 'normativo' | 'estimativa_historica' | 'parcial' | 'dados_insuficientes';
+  fontesNormativas: FonteNormativa[];
+  tabelaSelic?: {
+    fonte: string;
+    emitidaEm?: string;
+    coberturaAte?: string;
+  };
+  hipoteses: string[];
+  dadosAusentes: string[];
+}
+
 export interface SimulacaoSalva {
   id: string;
   dataSalvamento: Date;
@@ -95,6 +143,7 @@ export interface SimulacaoSalva {
   tipoCredito: string;
   kpis: KpiSnapshot;
   dcomps: DCOMP[];
+  metadadosAuditoria?: MetadadosAuditoriaRelatorio;
 }
 
 export interface Empresa {
@@ -107,16 +156,19 @@ export interface SimulacaoState {
   cadeias: Record<string, CadeiaRelacional>; // Map de cadeias por ID
   cadeiaSelecionadaId: string | null;
   simulacoesSalvas: SimulacaoSalva[];
+  importQualityReport: ImportQualityReport | null;
   
   // Actions
-  importarDados: (cadeias: CadeiaRelacional[], empresa: Empresa, isRecalculated?: boolean) => void;
+  importarDados: (cadeias: CadeiaRelacional[], empresa: Empresa, isRecalculated?: boolean, importQualityReport?: ImportQualityReport) => void;
   selecionarCadeia: (id: string) => void;
-  atualizarDebito: (dcompId: string, debitoId: string, novoValorPrincipal: number, novoValorMulta: number, novoValorJuros: number) => void;
+  atualizarDebitos: (dcompId: string, novosDebitos: DebitoOficial[]) => void;
   editarCreditoOriginal: (cadeiaId: string, novoValor: number) => void;
   adicionarDcompHipotetica: (cadeiaId: string, debitosSimulados: Array<{codigoReceita: string, periodoApuracao: string, dataVencimento: string, principal: number, multa: number, juros: number}>, dataTransmissao: Date) => void;
   removerDcompHipotetica: (cadeiaId: string, dcompId: string) => void;
   recalcularCadeia: (cadeiaId: string) => void;
   limparDados: () => void;
-  salvarSimulacaoCadeia: (cadeiaId: string, kpis: KpiSnapshot) => void;
+  salvarSimulacaoCadeia: (cadeiaId: string, kpis: KpiSnapshot, metadadosAuditoria?: MetadadosAuditoriaRelatorio) => void;
   limparSimulacoesSalvas: () => void;
 }
+import type { CreditoClassificado } from '../services/normativo/creditRules';
+import type { StatusProcessamentoClassificado } from '../services/normativo/statusRules';

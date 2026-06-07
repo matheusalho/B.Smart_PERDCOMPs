@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import type { DCOMP, DebitoOficial } from '../models/types';
 import { useStore } from '../store';
 import codigosReceitaData from '../data/CodigosDeReceita.json';
+import { classificarStatusProcessamento } from '../services/normativo/statusRules';
+import { verificarVedacaoDebito } from '../services/normativo/vedacaoCompensacaoService';
 
 // Criar dicionário O(1)
 const codigosReceitaDict = codigosReceitaData.reduce((acc, curr) => {
@@ -18,7 +20,7 @@ interface ModalEdicaoProps {
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
 export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
-  const atualizarDebito = useStore(state => state.atualizarDebito);
+  const atualizarDebitos = useStore(state => state.atualizarDebitos);
   const [debitosEdit, setDebitosEdit] = useState<DebitoOficial[]>([...dcomp.debitos]);
   const [buscaReceita, setBuscaReceita] = useState('');
   const [filtroOrigem, setFiltroOrigem] = useState<string>('Todas');
@@ -94,13 +96,18 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
   };
 
   const handleSave = () => {
+    let hasChanges = false;
     debitosEdit.forEach(d => {
-      // Comparar com o DCOMP para ver se de fato mudou algo em relação ao estado atual do store
       const orig = dcomp.debitos.find(x => x.id === d.id);
       if (orig && (orig.valorPrincipal !== d.valorPrincipal || orig.valorJuros !== d.valorJuros || orig.valorMulta !== d.valorMulta)) {
-        atualizarDebito(dcomp.id, d.id, d.valorPrincipal, d.valorMulta, d.valorJuros);
+        hasChanges = true;
       }
     });
+    
+    if (hasChanges) {
+      atualizarDebitos(dcomp.id, debitosEdit);
+    }
+    
     onClose();
   };
 
@@ -131,12 +138,92 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
           <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: '1.5rem', padding: '0.2rem 0.5rem', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
         </div>
 
+        {(() => {
+          const statusClassificado = classificarStatusProcessamento({
+            status: dcomp.situacao,
+            tipoDocumento: dcomp.tipoDocumento || ''
+          });
+
+          if (statusClassificado.editabilidadeSimulacao === 'bloqueado') {
+            return (
+              <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', color: 'var(--color-danger)', display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                <span style={{ fontSize: '0.9rem' }}>
+                  <strong>Atenção:</strong> O status atual (<strong>{dcomp.situacao}</strong>) indica que a retificação desta PER/DCOMP está processualmente bloqueada na RFB. As alterações simuladas aqui terão caráter estritamente hipotético.
+                </span>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', color: 'var(--color-primary)', display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, border: '1px solid rgba(59, 130, 246, 0.2)' }}>
           <span style={{ fontSize: '1.25rem' }}>ℹ️</span>
           <span style={{ fontSize: '0.9rem' }}>
             Editando <strong>{dcomp.id}</strong>. Ao alterar o <strong>Valor Principal</strong>, multa e juros serão recalculados proporcionalmente.
           </span>
         </div>
+
+        {/* Qualidade da Auditoria SELIC Panel */}
+        {dcomp.resultadoSelic && (
+          <div style={{ 
+            backgroundColor: dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'rgba(16, 185, 129, 0.1)' : 
+                             dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+            padding: '1rem 1.5rem', 
+            borderRadius: '8px', 
+            marginBottom: '1.5rem', 
+            color: dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'var(--color-success)' : 
+                   dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'var(--color-warning)' : 'var(--color-danger)', 
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: '0.5rem', 
+            flexShrink: 0, 
+            border: `1px solid ${dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'rgba(16, 185, 129, 0.3)' : 
+                                  dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` 
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+              {dcomp.resultadoSelic.statusCalculo === 'normativo' ? '✅ Qualidade SELIC: Cálculo Normativo' : 
+               dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? '⚠️ Qualidade SELIC: Estimativa Histórica' : '❌ Qualidade SELIC: Dados Insuficientes'}
+            </div>
+            
+            <div style={{ fontSize: '0.85rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              <div>
+                <strong>Fontes Normativas:</strong> 
+                <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+                  {dcomp.resultadoSelic.fontesNormativas.map((f, i) => <li key={i}>{f.resumo}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div><strong>Status:</strong> {dcomp.resultadoSelic.statusCalculo.toUpperCase()}</div>
+                {dcomp.resultadoSelic.valor?.taxaSelicDecimal !== undefined && (
+                  <div><strong>Taxa Selic Injetada:</strong> {(dcomp.resultadoSelic.valor.taxaSelicDecimal * 100).toFixed(4)}%</div>
+                )}
+              </div>
+            </div>
+            
+            {dcomp.resultadoSelic.alertas && dcomp.resultadoSelic.alertas.length > 0 && (
+              <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                <strong>Observações/Alertas:</strong>
+                <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+                  {dcomp.resultadoSelic.alertas.map((alerta, idx) => (
+                    <li key={idx}>{alerta}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {dcomp.resultadoSelic.dadosAusentes && dcomp.resultadoSelic.dadosAusentes.length > 0 && (
+              <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                <strong>Dados Ausentes que Impedem o Cálculo Exato:</strong>
+                <ul style={{ fontSize: '0.8rem', marginTop: '0.25rem', paddingLeft: '1.5rem', color: 'inherit' }}>
+                  {dcomp.resultadoSelic.dadosAusentes.map((motivo, idx) => (
+                    <li key={idx}>{motivo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ marginBottom: '1.5rem', flexShrink: 0, display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <input 
@@ -184,7 +271,18 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
                   <tr key={deb.id} style={{ backgroundColor: isMudado ? 'rgba(255,255,255,0.03)' : 'transparent' }}>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontWeight: 600 }}>{deb.codigoReceita}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <span style={{ fontWeight: 600 }}>{deb.codigoReceita}</span>
+                          {(() => {
+                            const alertas = verificarVedacaoDebito(deb, dcomp.dataTransmissaoOriginal || new Date());
+                            if (alertas.length > 0) {
+                              return (
+                                <span style={{ cursor: 'help' }} title={alertas.map(a => a.mensagem).join(' | ')}>⚠️</span>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                         <span className="text-muted" style={{ fontSize: '0.75rem' }}>PA: {(() => {
                           const val = deb.periodoApuracao;
                           const num = Number(val);

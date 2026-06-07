@@ -132,6 +132,51 @@ Classificacao:
 - Criticidade: Critica para simulacoes e DCOMP hipotetica.
 - Risco residual na visualizacao/importacao: menor, desde que os valores importados da RFB continuem preservados e claramente identificados.
 
+## Rodada de Implementacao Fase 3 Expandida - 2026-06-07
+
+Escopo executado:
+
+- criado `src/services/normativo/selicService.ts`;
+- ampliado `src/services/normativo/dateRules.ts` com:
+  - `calcularTermoFinalDcompOriginal`;
+  - `extrairFimPeriodoApuracaoCredito`;
+- criado teste real `src/services/normativo/__tests__/selicService.real.test.ts`;
+- `SelicService` permanece fora do fluxo ativo de `CalculoService.ts`.
+
+Comportamento implementado:
+
+- resultado `normativo` somente quando tipo de credito, termo inicial, termo final, total de debitos e `taxaSelicDecimal` estao disponiveis;
+- para saldo negativo IRPJ/CSLL, o termo inicial e derivado do fim do periodo de apuracao importado;
+- termo final usa a data de transmissao original da linhagem, aplicando a regra de mes anterior a entrega;
+- credito judicial real sem componentes importados retorna `dados_insuficientes` com `dadosAusentes = componentesCreditoJudicial`;
+- quando a taxa SELIC normativa nao esta disponivel, o servico pode retornar `estimativa_historica` com `metodo = fator_historico_identificado`, sem declarar resultado normativo.
+
+Evidencia real usada:
+
+- DCOMP real `06251.86776.210720.1.7.02-1771` (saldo negativo IRPJ);
+- DCOMP real `17339.63413.191224.1.3.03-0151` (saldo negativo CSLL);
+- DCOMP real `04545.00403.181224.1.3.04-9218` (pagamento indevido a maior);
+- DCOMP real `37701.32986.170423.1.3.16-2407` (CPIM);
+- DCOMP real `09896.37478.250424.1.3.24-6461` (pagamento indevido eSocial);
+- DCOMP real `32552.06818.210225.1.3.57-2529` (credito judicial sem componentes).
+
+Limites preservados:
+
+- nenhum valor importado foi alterado;
+- nenhum campo `...Original` foi recalculado;
+- `CalculoService.ts` nao foi integrado nesta rodada;
+- a taxa foi injetada em teste como fixture validada, nao obtida por inferencia da tabela Sicalc.
+
+Gates executados:
+
+- `npm run test`: aprovado, 10 arquivos de teste, 44 testes;
+- `npm run lint`: aprovado;
+- `npm run build`: aprovado.
+
+Proximo passo recomendado:
+
+- testar art. 152 com dados complementares quando disponiveis; depois preparar Fase 4 de integracao controlada com `CalculoService`.
+
 ### ACH-006 - Credito judicial exige regra por componente e forma de atualizacao
 
 Status: Aberto.

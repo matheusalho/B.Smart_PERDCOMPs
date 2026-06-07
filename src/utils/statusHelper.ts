@@ -1,26 +1,4 @@
-const naoVigentes = [
-  'Pedido de Cancelamento Deferido',
-  'Retificado',
-  'Cancelado',
-  'Não Admitido'
-];
-
-const bloqueados = [
-  'Análise Concluída',
-  'Análise concluída',
-  'Cancelado',
-  'Despacho Decisório Emitido',
-  'Em discussão administrativa - CARF',
-  'Em discussão administrativa – CARF',
-  'Em discussão administrativa - CSRF',
-  'Em discussão administrativa – CSRF',
-  'Em discussão administrativa - DRJ',
-  'Em discussão administrativa – DRJ',
-  'Homologado',
-  'Não Admitido',
-  'Pedido de Cancelamento Deferido',
-  'PER Deferido'
-];
+import { classificarStatusProcessamento } from '../services/normativo/statusRules';
 
 export const isPedidoCancelamento = (id?: string, tipoDocumento?: string): boolean => {
   if (tipoDocumento && tipoDocumento.includes('Pedido de Cancelamento')) return true;
@@ -30,18 +8,34 @@ export const isPedidoCancelamento = (id?: string, tipoDocumento?: string): boole
 
 export const isNaoVigente = (situacao: string, tipoDocumento?: string, id?: string): boolean => {
   if (isPedidoCancelamento(id, tipoDocumento)) return true;
-  return naoVigentes.includes(situacao);
+  
+  const classificado = classificarStatusProcessamento({
+    status: situacao,
+    tipoDocumento: tipoDocumento || 'desconhecido'
+  });
+  
+  return classificado.vigenciaCascata === 'nao_vigente';
 };
 
 export const isBloqueado = (situacao: string, tipoDocumento?: string, id?: string): boolean => {
   if (isPedidoCancelamento(id, tipoDocumento)) return true;
-  return bloqueados.includes(situacao);
+
+  const classificado = classificarStatusProcessamento({
+    status: situacao,
+    tipoDocumento: tipoDocumento || 'desconhecido'
+  });
+  
+  return classificado.editabilidadeSimulacao === 'bloqueado';
 };
 
 export const isVigente = (situacao: string, tipoDocumento?: string, id?: string): boolean => {
-  // Fallback: se não estiver explicitamente na lista de "Não Vigentes", consideramos "Vigente".
-  if (isNaoVigente(situacao, tipoDocumento, id)) {
-    return false;
-  }
-  return true;
+  if (isPedidoCancelamento(id, tipoDocumento)) return false;
+
+  const classificado = classificarStatusProcessamento({
+    status: situacao,
+    tipoDocumento: tipoDocumento || 'desconhecido'
+  });
+  
+  // Se for classificado como 'vigente' ou 'indeterminado', e não for pedido de cancelamento, consideramos vigente.
+  return classificado.vigenciaCascata !== 'nao_vigente';
 };

@@ -1,5 +1,37 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import type { StateStorage } from 'zustand/middleware';
+import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
+
+const memoryStorage = new Map<string, string>();
+const canUseIndexedDb = (): boolean => typeof globalThis.indexedDB !== 'undefined';
+
+const idbStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    if (!canUseIndexedDb()) {
+      return memoryStorage.get(name) ?? null;
+    }
+
+    return (await idbGet(name)) || null;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    if (!canUseIndexedDb()) {
+      memoryStorage.set(name, value);
+      return;
+    }
+
+    await idbSet(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    if (!canUseIndexedDb()) {
+      memoryStorage.delete(name);
+      return;
+    }
+
+    await idbDel(name);
+  },
+};
+
 import { format } from 'date-fns';
 import type { SimulacaoState, CadeiaRelacional, DCOMP, DebitoOficial, Empresa } from './models/types';
 import { recalcularCadeia } from './services/CalculoService';
@@ -11,14 +43,15 @@ export const useStore = create<SimulacaoState>()(
       cadeias: {},
       cadeiaSelecionadaId: null,
       simulacoesSalvas: [],
+      importQualityReport: null,
 
-      importarDados: (cadeiasList: CadeiaRelacional[], empresa: Empresa, isRecalculated: boolean = false) => {
+      importarDados: (cadeiasList: CadeiaRelacional[], empresa: Empresa, isRecalculated: boolean = false, importQualityReport = undefined) => {
     const cadeiasMap: Record<string, CadeiaRelacional> = {};
     cadeiasList.forEach(c => {
       // Se vier do worker, já está recalculada, o que salva bloqueio da UI
       cadeiasMap[c.id] = isRecalculated ? c : recalcularCadeia(c);
     });
-    set({ cadeias: cadeiasMap, empresa });
+    set({ cadeias: cadeiasMap, empresa, importQualityReport: importQualityReport ?? null });
   },
 
   selecionarCadeia: (id: string) => {
@@ -26,14 +59,14 @@ export const useStore = create<SimulacaoState>()(
   },
 
   limparDados: () => {
-    set({ cadeias: {}, cadeiaSelecionadaId: null, simulacoesSalvas: [], empresa: null });
+    set({ cadeias: {}, cadeiaSelecionadaId: null, simulacoesSalvas: [], empresa: null, importQualityReport: null });
   },
 
   limparSimulacoesSalvas: () => {
     set({ simulacoesSalvas: [] });
   },
 
-  salvarSimulacaoCadeia: (cadeiaId: string, kpis) => {
+  salvarSimulacaoCadeia: (cadeiaId: string, kpis, metadadosAuditoria) => {
     const { cadeias, simulacoesSalvas } = get();
     const cadeia = cadeias[cadeiaId];
     if (!cadeia) return;
@@ -45,6 +78,7 @@ export const useStore = create<SimulacaoState>()(
       numeroDcompInicial: cadeia.numeroDcompInicial,
       tipoCredito: cadeia.tipoCredito,
       kpis,
+      metadadosAuditoria,
       // Fazendo deep copy simplificada para snapshot das dcomps
       dcomps: JSON.parse(JSON.stringify(cadeia.dcomps))
     };
@@ -54,7 +88,7 @@ export const useStore = create<SimulacaoState>()(
     });
   },
 
-  atualizarDebito: (dcompId: string, debitoId: string, novoValorPrincipal: number, novoValorMulta: number, novoValorJuros: number) => {
+  atualizarDebitos: (dcompId: string, novosDebitos: DebitoOficial[]) => {
     const { cadeias, cadeiaSelecionadaId, recalcularCadeia: actionRecalcular } = get();
     if (!cadeiaSelecionadaId) return;
 
@@ -64,20 +98,9 @@ export const useStore = create<SimulacaoState>()(
     const dcompsAtualizadas = cadeia.dcomps.map((dcomp: DCOMP) => {
       if (dcomp.id !== dcompId) return dcomp;
 
-      const debitosAtualizados = dcomp.debitos.map((deb: DebitoOficial) => {
-        if (deb.id !== debitoId) return deb;
-        return {
-          ...deb,
-          valorPrincipal: novoValorPrincipal,
-          valorMulta: novoValorMulta,
-          valorJuros: novoValorJuros,
-          valorTotal: novoValorPrincipal + novoValorMulta + novoValorJuros
-        };
-      });
+      const isAindaEditado = novosDebitos.some(deb => deb.valorTotal !== deb.valorTotalOriginal);
 
-      const isAindaEditado = debitosAtualizados.some(deb => deb.valorTotal !== deb.valorTotalOriginal);
-
-      return { ...dcomp, debitos: debitosAtualizados, isManuallyEdited: isAindaEditado };
+      return { ...dcomp, debitos: novosDebitos, isManuallyEdited: isAindaEditado };
     });
 
     const cadeiaAtualizada: CadeiaRelacional = { ...cadeia, dcomps: dcompsAtualizadas };
@@ -169,7 +192,10 @@ export const useStore = create<SimulacaoState>()(
       valorUtilizadoPerdcomp: valorDesejadoTotal,
       valorUtilizadoPerdcompOriginal: valorDesejadoTotal,
       idCadeiaRelacional: cadeiaId,
-      debitos: debitosOficiais
+      debitos: debitosOficiais,
+      metadadosCreditoImportado: {
+        origemDataProtocoloPerOriginal: 'informada_usuario'
+      }
     };
 
     set({
@@ -216,5 +242,6 @@ export const useStore = create<SimulacaoState>()(
 }),
   {
     name: 'bsmart-perdcomp-storage', // name of item in the storage (must be unique)
+    storage: createJSONStorage(() => idbStorage),
   }
 ));

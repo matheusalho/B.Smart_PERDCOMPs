@@ -29,10 +29,10 @@ export const UploadComponent: React.FC = () => {
       const worker = new Worker(new URL('../workers/excelWorker.ts', import.meta.url), { type: 'module' });
       
       worker.onmessage = (e) => {
-        const { success, cadeias, empresa, error: workerError } = e.data;
+        const { success, cadeias, empresa, importQualityReport, error: workerError } = e.data;
         if (success) {
           toast.success('Planilha processada com sucesso!');
-          importarDados(cadeias, empresa, true);
+          importarDados(cadeias, empresa, true, importQualityReport);
         } else {
           toast.error(workerError || 'Erro desconhecido ao processar a planilha.');
           setLoading(false);

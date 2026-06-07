@@ -1,5 +1,13 @@
 import * as XLSX from 'xlsx';
-import type { CadeiaRelacional, DCOMP, DebitoOficial } from '../models/types';
+import type {
+  CadeiaRelacional,
+  DCOMP,
+  DebitoOficial,
+  ImportQualityReport,
+  MetadadosCreditoImportado,
+} from '../models/types';
+import { classificarTipoCredito } from './normativo/creditRules';
+import { classificarStatusProcessamento } from './normativo/statusRules';
 
 type ExcelRow = Record<string, unknown>;
 
@@ -20,6 +28,13 @@ const toOptionalString = (value: unknown): string | undefined => {
 const toNumberValue = (value: unknown): number => {
   if (value === undefined || value === null || value === '') return 0;
   return Number(value);
+};
+
+const toOptionalDateValue = (value: unknown): Date | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const date = parseExcelDate(value);
+
+  return Number.isNaN(date.getTime()) ? undefined : date;
 };
 
 // Função para converter data do Excel (número serial) para Date do JS
@@ -62,7 +77,34 @@ const formatPeriodoExcel = (excelVal: unknown): string => {
   return String(excelVal);
 };
 
-export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[], empresa: { cnpj: string, razaoSocial: string } } => {
+const formatOptionalPeriodoExcel = (excelVal: unknown): string | undefined => {
+  if (excelVal === undefined || excelVal === null || excelVal === '') return undefined;
+  const formatted = formatPeriodoExcel(excelVal).trim();
+
+  return formatted || undefined;
+};
+
+const buildMetadadosCreditoImportado = (row: ExcelRow): MetadadosCreditoImportado | undefined => {
+  const metadados: MetadadosCreditoImportado = {
+    dataArrecadacaoCredito: toOptionalDateValue(firstValue(row['Data de Arrecadação'], row['Data de Arrecadacao'])),
+    competenciaCredito: toOptionalString(firstValue(row['Competência do Crédito'], row['Competencia do Credito'])),
+    tipoCompetenciaCredito: toOptionalString(firstValue(row['Tipo Competência'], row['Tipo Competencia'])),
+    numeroPagamento: toOptionalString(firstValue(row['Número do Pagamento - DARF'], row['Numero do Pagamento - DARF'])),
+    periodoApuracaoDarf: formatOptionalPeriodoExcel(firstValue(row['Período de Apuração do DARF'], row['Periodo de Apuracao do DARF'])),
+    processoJudicial: toOptionalString(row['Processo Judicial']),
+    processoHabilitacao: toOptionalString(firstValue(row['Processo de Habilitação'], row['Processo de Habilitacao'])),
+    processoAdministrativo: toOptionalString(row['Processo Administrativo']),
+    numeroPerOriginal: toOptionalString(firstValue(row['Perdcomp Anterior com Detalhamento de Crédito'], row['Detalhado Perdcomp Anterior'])),
+  };
+
+  const metadadosFiltrados = Object.fromEntries(
+    Object.entries(metadados).filter(([, value]) => value !== undefined && value !== ''),
+  ) as MetadadosCreditoImportado;
+
+  return Object.keys(metadadosFiltrados).length > 0 ? metadadosFiltrados : undefined;
+};
+
+export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[], empresa: { cnpj: string, razaoSocial: string }, importQualityReport: ImportQualityReport } => {
   const workbook = XLSX.read(data, { 
     type: 'array',
     sheets: ['Processamento PERDCOMP', 'PERDCOMP Débitos'],
@@ -147,12 +189,32 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
 
   // Agrupar DCOMPs por Cadeia Relacional
   const cadeiasMap: Record<string, CadeiaRelacional> = {};
+  const documentosIgnorados: ImportQualityReport['documentosIgnorados'] = [];
+  let dcompsCarregadas = 0;
 
   rowsProcessamento.forEach(row => {
     const idCadeia = toStringValue(row['IDs da Cadeia Relacional']);
-    if (!idCadeia) return;
-
     const numeroDcomp = toStringValue(firstValue(row['Número Perdcomp'], row['Número do PER/DCOMP']));
+
+    if (!numeroDcomp) {
+      documentosIgnorados.push({
+        numeroPerdcomp: '',
+        motivo: 'sem_numero_perdcomp',
+        tipoCredito: toOptionalString(firstValue(row['Tipo de Crédito'], row['Tipo de Credito'])),
+        situacao: toOptionalString(firstValue(row['Situação'], row['Situacao'])),
+      });
+      return;
+    }
+
+    if (!idCadeia) {
+      documentosIgnorados.push({
+        numeroPerdcomp: numeroDcomp,
+        motivo: 'sem_cadeia_relacional',
+        tipoCredito: toOptionalString(firstValue(row['Tipo de Crédito'], row['Tipo de Credito'])),
+        situacao: toOptionalString(firstValue(row['Situação'], row['Situacao'])),
+      });
+      return;
+    }
     
     // Na tabela de Proc, temos:
     // Data Transmissão, Data de Transmissão do Perdcomp, Retificado ou Cancelado Por, 
@@ -176,6 +238,12 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
       idCadeiaRelacional: idCadeia,
       numeroRetificador: toOptionalString(firstValue(row['Retificado ou Cancelado Por'], row['Número Retificador'])),
       numeroDcompDetalhamento: toOptionalString(firstValue(row['Perdcomp Anterior com Detalhamento de Crédito'], row['Detalhado Perdcomp Anterior'])),
+      metadadosCreditoImportado: buildMetadadosCreditoImportado(row),
+      classificacaoCreditoConsultiva: classificarTipoCredito(toStringValue(row['Tipo de Crédito'])),
+      statusProcessamentoConsultivo: classificarStatusProcessamento({
+        status: toStringValue(row['Situação'], 'Pendente'),
+        tipoDocumento: toStringValue(firstValue(row['Tipo do Documento'], row['Tipo de Documento'])),
+      }),
       debitos: debitosPorDcomp[numeroDcomp] || [],
     };
 
@@ -190,6 +258,7 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
     }
 
     cadeiasMap[idCadeia].dcomps.push(dcomp);
+    dcompsCarregadas++;
   });
 
   // Ajustar o número da DCOMP inicial e ordenar cada cadeia
@@ -293,5 +362,20 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
     return cadeia;
   });
 
-  return { cadeias, empresa };
+  return {
+    cadeias,
+    empresa,
+    importQualityReport: {
+      linhasProcessamento: rowsProcessamento.length,
+      linhasDebitos: rowsDebitos.length,
+      dcompsCarregadas,
+      cadeiasCarregadas: cadeias.length,
+      debitosCarregados: cadeias.reduce(
+        (total, cadeia) =>
+          total + cadeia.dcomps.reduce((dcompTotal, dcomp) => dcompTotal + dcomp.debitos.length, 0),
+        0,
+      ),
+      documentosIgnorados,
+    },
+  };
 };
