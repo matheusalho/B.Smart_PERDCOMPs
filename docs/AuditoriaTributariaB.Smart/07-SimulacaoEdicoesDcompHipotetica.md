@@ -24,6 +24,38 @@ Critica.
 - O recalculo em cascata estima novo credito original consumido.
 - DCOMP hipotetica cria debitos simulados e calcula consumo por fator derivado da ultima DCOMP real.
 
+### Rodada de Auditoria de 2026-06-07
+
+Fontes verificadas:
+
+- `Knowledge/per_dcomp-web_-informar-debitos-para-compensacao.md`, linhas 193 a 205, 243 a 253, 291 a 315, 563 a 573 e 777 a 793.
+- `src/components/ModalEdicao.tsx`, linhas 28 a 49, 96 a 105 e 134 a 138.
+- `src/components/ModalHipotetica.tsx`, linhas 12 a 19, 76 a 103 e 167 a 175.
+- `src/components/TimelineCascata.tsx`, linhas 468 a 474.
+- `src/store.ts`, linhas 118 a 172.
+- `src/services/CalculoService.ts`, linhas 162 a 196.
+
+Leitura tecnica:
+
+- `ModalEdicao.tsx` permite edicao direta de principal, multa e juros.
+- Quando o usuario altera o principal, o modal recalcula multa e juros pela proporcao `novoPrincipal / valorPrincipalOriginal`.
+- Se o usuario altera multa ou juros diretamente, o modal apenas soma os componentes e salva o novo total.
+- O texto do modal informa que multa e juros serao recalculados proporcionalmente quando o principal for alterado, mas nao declara que isso e uma estimativa/heuristica operacional.
+- `store.ts` marca a DCOMP como editada se algum debito difere do original e aciona recalcule da cadeia.
+- `CalculoService.ts` descapitaliza DCOMP editada por fator historico: `totalDebitosOriginal / valorUtilizadoPerdcompOriginal`.
+- `ModalHipotetica.tsx` coleta codigo de receita, PA, vencimento, principal, multa e juros, mas nao coleta data de transmissao da DCOMP hipotetica.
+- `TimelineCascata.tsx` cria a DCOMP hipotetica com `new Date()` no momento da confirmacao.
+- `store.ts` grava debitos simulados com `valorPrincipalOriginal`, `valorMultaOriginal`, `valorJurosOriginal` e `valorTotalOriginal` iguais aos valores digitados pelo usuario. Para DCOMP hipotetica, esses campos representam base simulada, nao valor importado da RFB.
+- `CalculoService.ts` calcula DCOMP hipotetica por fator derivado da ultima DCOMP real e soma `getSelicMensal` do mes da ultima transmissao real, nao da data hipotetica.
+
+Regras/evidencias normativas confirmadas nesta rodada:
+
+- O PER/DCOMP Web calcula multa e juros de debito em atraso comparando data de vencimento do debito e data de transmissao da DCOMP original.
+- O manual orienta confirmar multa e juros no Sicalc Web.
+- Em multa com reducao, o valor informado e o valor compensado podem ser diferentes; a reducao precisa ser tratada expressamente.
+- Em lancamento de oficio, a compensacao parcial do debito deve ser realizada na mesma proporcao para principal, multa e juros.
+- Juros compensados devem considerar os juros incidentes ate a data de transmissao da declaracao de compensacao.
+
 ## Conhecimento Geral Ja Extraido
 
 Fonte principal: `Knowledge/per_dcomp-web_-informar-debitos-para-compensacao.pdf`.
@@ -64,6 +96,59 @@ Relacionado ao ACH-001:
 - edicoes manuais usam fator empirico historico;
 - DCOMP hipotetica usa aproximacao derivada da ultima DCOMP real;
 - ambos precisam ser auditados contra regra normativa de SELIC e tipo de credito.
+
+## Achados da Rodada
+
+### ACH-019 - Recalculo proporcional de multa/juros precisa ser metodo declarado
+
+- Objeto relacionado: AUD-07, AUD-08, AUD-10.
+- Criticidade: Alta.
+- Evidencia normativa:
+  - `per_dcomp-web_-informar-debitos-para-compensacao.md`, linhas 193 a 205, 291 a 315 e 777 a 793.
+- Evidencia tecnica:
+  - `ModalEdicao.tsx`, linhas 28 a 49 e 134 a 138.
+- Descricao:
+  - O modal recalcula multa e juros proporcionalmente quando o principal e alterado.
+  - A regra normativa de multa/juros em atraso depende de data de vencimento e data de transmissao da DCOMP original, com recomendacao de conferencia no Sicalc.
+  - A proporcionalidade e expressamente relevante para alguns cenarios de compensacao parcial/lancamento de oficio, mas nao substitui o calculo de acrescimos legais em todos os debitos.
+- Risco:
+  - Usuario pode interpretar a proporcionalidade como recalculo normativo universal de multa/juros.
+- Diretriz:
+  - Manter o metodo como `estimativa_proporcional` ou `proporcional_lancamento_oficio` conforme o caso.
+  - Exibir alerta e registrar no relatorio quando multa/juros nao forem recalculados por motor normativo/Sicalc.
+
+### ACH-020 - DCOMP hipotetica nao captura data de transmissao como premissa do usuario
+
+- Objeto relacionado: AUD-01, AUD-07, AUD-08.
+- Criticidade: Critica.
+- Evidencia tecnica:
+  - `ModalHipotetica.tsx`, linhas 12 a 19 e 76 a 103.
+  - `TimelineCascata.tsx`, linhas 468 a 474.
+  - `store.ts`, linhas 156 a 172.
+- Descricao:
+  - A data de transmissao da DCOMP hipotetica e criada com `new Date()` no momento da confirmacao, nao informada ou revisada pelo usuario.
+  - A data de transmissao define o termo final da SELIC e a regra de dia nao util.
+- Risco:
+  - A simulacao pode mudar de resultado por data de uso da ferramenta, e nao por premissa consciente do usuario.
+  - Relatorio futuro pode nao conseguir explicar o termo final usado.
+- Diretriz:
+  - Modal hipotetico deve exigir ou exibir `dataTransmissaoHipotetica`, com origem `informada_usuario` ou `default_sistema`.
+  - A data de valoracao calculada pelo art. 157 deve ser separada de `dataTransmissaoOriginal`.
+
+### ACH-021 - Campos `...Original` de DCOMP hipotetica representam base simulada, nao RFB
+
+- Objeto relacionado: AUD-05, AUD-07, AUD-08.
+- Criticidade: Alta.
+- Evidencia tecnica:
+  - `store.ts`, linhas 129 a 142 e 156 a 172.
+- Descricao:
+  - Ao criar debitos simulados, o store preenche `valorPrincipalOriginal`, `valorMultaOriginal`, `valorJurosOriginal` e `valorTotalOriginal` com os valores digitados.
+  - Para uma DCOMP hipotetica, esses valores nao vieram da RFB; sao o baseline da propria simulacao.
+- Risco:
+  - UI/PDF podem tratar `...Original` como importado da RFB em uma DCOMP hipotetica.
+- Diretriz:
+  - Acrescentar origem de documento/valor: `importado_rfb` versus `simulado_usuario`.
+  - Para hipotetica, preservar os campos como baseline simulado, mas nunca descreve-los como "original RFB".
 
 ## Impacto da Rodada AUD-01 em 2026-06-06
 
@@ -109,8 +194,59 @@ Conclusao para simulacoes:
 - Encapsular a descapitalizacao em servico testavel.
 - Criar estrutura de debito simulavel com campos separados para `valorInformado`, `valorCompensado`, `saldoDevedor`, `reducaoAplicada`, `dataVencimento`, `dataTransmissaoOriginalReferencia` e `metodoCalculoAcrescimos`.
 
+## Desenho Tecnico Proposto
+
+### Edicao manual de debitos
+
+Criar metadados por debito editado:
+
+```ts
+type MetodoEdicaoDebito =
+  | 'informado_usuario'
+  | 'estimativa_proporcional'
+  | 'proporcional_lancamento_oficio'
+  | 'sicalc_confirmado'
+  | 'dados_insuficientes';
+
+type AuditoriaEdicaoDebito = {
+  origemValoresOriginais: 'importado_rfb' | 'simulado_usuario';
+  metodoPrincipal: MetodoEdicaoDebito;
+  metodoMulta: MetodoEdicaoDebito;
+  metodoJuros: MetodoEdicaoDebito;
+  dataVencimentoDebito?: string;
+  dataTransmissaoReferencia?: string;
+  reducaoMultaAplicada?: number;
+  observacoes: string[];
+};
+```
+
+Regras:
+
+- Alteracao proporcional automatica deve ser registrada como estimativa, salvo quando o tipo de debito/cenario confirmar proporcionalidade obrigatoria.
+- Valores informados manualmente pelo usuario devem ser marcados como `informado_usuario`.
+- Quando multa/juros dependerem de Sicalc, o app deve exibir alerta e permitir marcar conferencia externa.
+
+### DCOMP hipotetica
+
+Campos minimos futuros:
+
+- `dataTransmissaoHipotetica`;
+- `origemDataTransmissaoHipotetica`: `informada_usuario` ou `default_sistema`;
+- `dataEntregaValoracao`, calculada por regra de dia util quando aplicavel;
+- `metodoConsumoCredito`: `normativo_selic`, `estimativa_historica`, `dados_insuficientes`;
+- `origemValores`: `simulado_usuario`;
+- `dadosAusentes` e `hipoteses`.
+
+Regra de apresentacao:
+
+- A DCOMP hipotetica deve sempre aparecer como simulacao, nao como documento importado.
+- Se `SelicService` nao tiver dados suficientes, manter consumo por fator historico apenas como estimativa operacional declarada.
+
 ## Criterios de Aceite
 
 - Usuario consegue ver claramente o que foi importado e o que foi simulado.
 - Toda simulacao possui metodo rastreavel.
 - Ajustes futuros preservam os campos `...Original`.
+- DCOMP hipotetica possui data de transmissao auditavel e nao dependente apenas do momento de clique.
+- Multa/juros proporcionais sao identificados como estimativa ou como regra aplicavel ao caso, com fonte.
+- Relatorio diferencia baseline simulado de valor original importado da RFB.

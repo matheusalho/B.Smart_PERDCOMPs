@@ -43,7 +43,7 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 | AUD-04 | Consumo de credito original e cascata | `04-ConsumoCreditoOriginalECascata.md` | Critica | Solucao proposta | Validar como o saldo original e consumido, propagado e comparado com o saldo informado pela RFB. | Erro de abatimento pode indicar retificacao indevida ou esconder insuficiencia de credito. | Rodada de 2026-06-07 confirmou que o motor preserva campos originais principais, mas usa heuristica textual para multiplos detalhamentos, fallback silencioso de pool, replicacao de valor mutavel para UI e status `RETIFICAR` derivado de divergencia matematica. | Criar `CascataRule` por tipo de credito, registrar metodo/origem/confianca do saldo calculado e separar status tecnico de acao sugerida. |
 | AUD-05 | Valores originais e rastreabilidade | `05-ValoresOriginaisRastreabilidade.md` | Critica | Achado registrado | Garantir preservacao de `...Original`, separando valores importados, calculados e simulados. | Contaminar base original compromete prova, auditoria e relatorio. | Matriz inicial de origem/mutabilidade criada para campos atuais e campos futuros de SELIC; art. 157 deve gerar data calculada separada, nao substituir `dataTransmissaoOriginal`. | Criar tipo dedicado para metadados de importacao e resultado SELIC, mantendo campos `...Original` intactos. |
 | AUD-06 | Retificacoes, vigencia e bloqueios | `06-RetificacoesVigenciaBloqueios.md` | Alta | Solucao proposta | Validar status da RFB, documentos vigentes, bloqueados, retificados, cancelados e impactos em cascata. | Classificacao incorreta pode permitir edicao indevida, ignorar documento relevante ou consumir saldo de documento nao vigente. | Manual confirma cancelamento irreversivel e restricoes a documento analisado/intimado. Planilha real tem 10 situacoes e 3 tipos de documento; helper atual diverge em 5 linhas por falta de normalizacao (`Pedido de cancelamento deferido | Pedido Cancelamento` e `Nao admitido`). | Criar classificador unico `StatusRulesService`, com normalizacao, motivo, fonte e separacao entre vigencia, editabilidade, cancelabilidade e vedacao normativa. |
-| AUD-07 | Simulacao, edicoes manuais e DCOMP hipotetica | `07-SimulacaoEdicoesDcompHipotetica.md` | Critica | Achado registrado | Auditar os efeitos tributarios de reduzir debitos, recalcular juros/multa e criar DCOMP hipotetica. | Simulacao pode parecer normativa sem calculo SELIC totalmente validado. | Edicao manual usa fator historico; hipotetica usa aproximacao de fator SELIC da ultima DCOMP real. Manual de debitos exige separar valores informados/compensados e observar multa, juros, reducao e data de transmissao original. | Exigir rastreabilidade do metodo usado e migrar para calculo normativo quando validado. |
+| AUD-07 | Simulacao, edicoes manuais e DCOMP hipotetica | `07-SimulacaoEdicoesDcompHipotetica.md` | Critica | Solucao proposta | Auditar os efeitos tributarios de reduzir debitos, recalcular juros/multa e criar DCOMP hipotetica. | Simulacao pode parecer normativa sem calculo SELIC totalmente validado. | Edicao manual usa fator historico; hipotetica usa aproximacao de fator SELIC da ultima DCOMP real. Rodada de 2026-06-07 registrou que multa/juros proporcionais precisam de metodo declarado, DCOMP hipotetica usa `new Date()` como data de transmissao e campos `...Original` de hipotetica representam baseline simulado, nao RFB. | Exigir rastreabilidade do metodo usado, data de transmissao hipotetica auditavel, origem de valor por documento/debito e migrar para calculo normativo quando validado. |
 | AUD-08 | Relatorios PDF/Excel e rastreabilidade | `08-RelatoriosPDFExcelRastreabilidade.md` | Alta | Solucao proposta | Garantir que relatorios mostrem original, simulado, delta, status e fonte do calculo. | Relatorio pode omitir premissas ou misturar saldo original com saldo simulado. | PDF existe e compara valores, mas nao declara metodologia/fonte/status de calculo; rotulos como `Valores Anteriores (Originais)` e `Novos Valores Corretos` misturam valores importados, calculados e simulados; snapshot salvo nao preserva contexto de auditoria. | Criar secao de premissas/metodologia, legenda de origem dos valores, metadados de auditoria no snapshot e Excel futuro com abas `Resumo`, `Premissas`, `Cascata`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`. |
 | AUD-09 | Casos de teste normativos e evidencias | `09-CasosTesteMatrizEvidencias.md` | Critica | Solucao proposta | Criar matriz de testes por tipo de credito, regra e caso real. | Ajustes futuros sem teste podem quebrar regras tributarias sensiveis. | Casos normativos de SELIC foram detalhados em fixtures FX-SEL-001 a FX-SEL-008, cobrindo pagamento indevido, saldo negativo, retencao previdenciaria, PIS/Cofins art. 152, IPI art. 152, credito judicial por componente, dados insuficientes e transmissao em dia nao util. Casos de cascata e status tambem foram especificados. Ainda nao ha automacao. | Automatizar primeiro fixtures de servico para `SelicService`, `DateRulesService`, `CreditoRulesService`, `StatusRulesService` e `CascataRule`, mantendo campos `...Original` intactos. |
 | AUD-10 | Base geral PER/DCOMP Web | `10-BaseGeralPERDCOMPWeb.md` | Alta | Em analise | Consolidar orientacoes gerais aplicaveis a multiplos tipos de credito e objetos de auditoria. | Corrigir regras especificas sem base transversal pode gerar inconsistencias entre tipos de credito, debitos, UI e relatorio. | Primeira rodada de leitura concluida para quatro manuais gerais: meios, vedacoes, informar debitos e orientacoes iniciais. | Usar o consolidado como camada de referencia antes de auditar manuais especificos por tipo de credito. |
@@ -314,6 +314,43 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
   - Simulacoes geradas com metodo antigo podem ser confundidas com simulacoes normativas futuras.
 - Diretriz:
   - Persistir metadados de auditoria no snapshot da simulacao salva, incluindo versao de regra, tabela SELIC, fontes, hipoteses e dados ausentes.
+
+### ACH-019 - Recalculo proporcional de multa/juros precisa ser metodo declarado
+
+- Objeto relacionado: AUD-07, AUD-08, AUD-10
+- Criticidade: Alta
+- Evidencia normativa:
+  - `per_dcomp-web_-informar-debitos-para-compensacao.md`, linhas 193 a 205, 291 a 315 e 777 a 793.
+- Evidencia tecnica:
+  - `src/components/ModalEdicao.tsx`, linhas 28 a 49 e 134 a 138.
+- Risco:
+  - Proporcionalidade pode ser interpretada como recalculo normativo universal de multa/juros, embora acrescimos legais dependam de vencimento, transmissao original e validacao/Sicalc.
+- Diretriz:
+  - Registrar metodo por componente do debito: `informado_usuario`, `estimativa_proporcional`, `proporcional_lancamento_oficio`, `sicalc_confirmado` ou `dados_insuficientes`.
+
+### ACH-020 - DCOMP hipotetica nao captura data de transmissao como premissa do usuario
+
+- Objeto relacionado: AUD-01, AUD-07, AUD-08
+- Criticidade: Critica
+- Evidencia tecnica:
+  - `src/components/ModalHipotetica.tsx`, linhas 12 a 19 e 76 a 103.
+  - `src/components/TimelineCascata.tsx`, linhas 468 a 474.
+  - `src/store.ts`, linhas 156 a 172.
+- Risco:
+  - Termo final da SELIC e regra de dia nao util podem depender do momento do clique, nao de premissa auditavel.
+- Diretriz:
+  - Exigir ou exibir `dataTransmissaoHipotetica`, origem da data e `dataEntregaValoracao` calculada separadamente.
+
+### ACH-021 - Campos `...Original` de DCOMP hipotetica representam baseline simulado
+
+- Objeto relacionado: AUD-05, AUD-07, AUD-08
+- Criticidade: Alta
+- Evidencia tecnica:
+  - `src/store.ts`, linhas 129 a 142 e 156 a 172.
+- Risco:
+  - UI/PDF podem descrever valores digitados pelo usuario como originais importados da RFB.
+- Diretriz:
+  - Adicionar origem de documento/valor (`importado_rfb` ou `simulado_usuario`) e tratar `...Original` da hipotetica como baseline simulado.
 
 ## Fluxo de Trabalho da Auditoria
 
