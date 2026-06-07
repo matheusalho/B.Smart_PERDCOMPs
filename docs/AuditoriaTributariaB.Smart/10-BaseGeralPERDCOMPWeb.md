@@ -36,6 +36,17 @@ A aplicacao precisa evoluir de comparacoes textuais avulsas para um catalogo nor
 - vedacoes especificas;
 - manual/fonte oficial.
 
+Rodada de priorizacao em 2026-06-07: a planilha real `Sheets/relatorio.xlsx` trouxe seis tipos de credito a priorizar no primeiro catalogo consultivo:
+
+- `Contribuicao Previdenciaria Indevida ou a Maior`;
+- `Credito Oriundo de Acao Judicial`;
+- `Pagamento Indevido ou a Maior`;
+- `Pagamento Indevido ou a Maior eSocial`;
+- `Saldo Negativo de CSLL`;
+- `Saldo Negativo de IRPJ`.
+
+Esses tipos devem ser classificados antes dos demais, pois sao os que afetam diretamente o fluxo real atualmente auditado.
+
 ### Catalogo de Vedacoes
 
 As vedacoes devem virar uma matriz de validacao, inicialmente consultiva. O app pode alertar o usuario quando o dado importado/simulado indicar potencial vedacao, sem bloquear a auditoria ate que a regra esteja validada em casos reais.

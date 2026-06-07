@@ -38,7 +38,7 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 | ID | Objeto | Arquivo | Criticidade | Status | Descricao precisa | Fragilidades possiveis | Achados/Inconsistencias atuais | Possiveis solucoes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | AUD-01 | SELIC e atualizacao de creditos | `01-SELICAtualizacaoCreditos.md` | Critica | Validado normativamente | Validar marco inicial, marco final, acrescimo de 1%, tipo de credito, componentes de credito judicial e uso da tabela SELIC. | Calculo simplificado pode distorcer consumo de credito em simulacoes; regras variam por tipo de credito e, no credito judicial, por componente/forma de atualizacao. | `CalculoService.ts` ainda contem funcao simplificada `calcularSelicAcumulada`; ela parece nao ser chamada no fluxo ativo. O fluxo ativo usa fator empirico para edicoes e aproximacao para DCOMP hipotetica. Manuais de Saldo Negativo IRPJ/CSLL, Pagamento Indevido PJ, Contribuicao Previdenciaria Indevida PJ e Retencao Previdenciaria PJ confirmam marcos iniciais distintos. Manual de credito judicial confirma calculo por componente. Salario-Familia/Maternidade PJ confirma DCOMP vedada e atualizacao apenas no reembolso pago. Ressarcimento de PIS/Cofins nao cumulativos e Ressarcimento de IPI seguem o art. 152 da IN RFB n. 2.055/2021 para SELIC apos 360 dias do PER original, com escopo de IPI limitado a valoracao do credito. Matriz minima implementavel de SELIC criada no arquivo do AUD-01. | Criar engine normativa de SELIC por tipo de credito/componente, com input/result rastreavel, mantendo valores importados e `...Original` intactos. |
-| AUD-02 | Tipos de credito, elegibilidade e restricoes | `02-TiposCreditoElegibilidadeRestricoes.md` | Critica | Em analise | Mapear quais creditos podem ser compensados, ressarcidos ou restituidos e quais debitos nao podem ser informados. | Permitir simulacao de combinacoes vedadas ou incompatibilidade entre credito e debito. | Manual de meios confirma que tipo de credito define canal cabivel e pre-requisitos; ainda nao ha catalogo normativo no codigo. | Construir matriz tipo de credito x meio permitido x restricoes x manual aplicavel. |
+| AUD-02 | Tipos de credito, elegibilidade e restricoes | `02-TiposCreditoElegibilidadeRestricoes.md` | Critica | Solucao proposta | Mapear quais creditos podem ser compensados, ressarcidos ou restituidos e quais debitos nao podem ser informados. | Permitir simulacao de combinacoes vedadas ou incompatibilidade entre credito e debito. | Matriz inicial criada para os seis tipos reais da planilha (`Pagamento Indevido ou a Maior`, `Pagamento Indevido ou a Maior eSocial`, `Contribuicao Previdenciaria Indevida ou a Maior`, `Saldo Negativo de IRPJ`, `Saldo Negativo de CSLL`, `Credito Oriundo de Acao Judicial`) e para vedações prioritarias. Ainda nao ha catalogo normativo no codigo. | Construir `CreditoRulesService`/catalogo consultivo de tipos e `VedacaoCompensacaoService`, inicialmente com alertas e rastreabilidade, sem bloqueio automatico. |
 | AUD-03 | Importacao do relatorio e-CAC e linhagem | `03-ImportacaoRelatorioECACELinhagem.md` | Alta | Achado registrado | Auditar parser, normalizacao, datas, agrupamento por cadeia, retificacoes e cancelamentos. | Mudanca de coluna da RFB pode quebrar importacao; erro de linhagem altera cascata inteira; marcos de SELIC podem existir na planilha mas nao no modelo. | Planilha real contem `Data de Arrecadacao`, `Competencia do Credito`, processos e dados de PER/pagamento ainda nao mapeados. Parser preserva valores principais, mas nao carrega todos os marcos necessarios para SELIC normativa. | Ampliar contrato de importacao e modelo com metadados opcionais rastreaveis antes de implementar `SelicService`. |
 | AUD-04 | Consumo de credito original e cascata | `04-ConsumoCreditoOriginalECascata.md` | Critica | Nao iniciado | Validar como o saldo original e consumido, propagado e comparado com o saldo informado pela RFB. | Erro de abatimento pode indicar retificacao indevida ou esconder insuficiencia de credito. | Motor funcional, mas ainda nao auditado contra cada tipo de credito. | Separar regras gerais de regras especificas por tipo de credito. |
 | AUD-05 | Valores originais e rastreabilidade | `05-ValoresOriginaisRastreabilidade.md` | Critica | Achado registrado | Garantir preservacao de `...Original`, separando valores importados, calculados e simulados. | Contaminar base original compromete prova, auditoria e relatorio. | Matriz inicial de origem/mutabilidade criada para campos atuais e campos futuros de SELIC; art. 157 deve gerar data calculada separada, nao substituir `dataTransmissaoOriginal`. | Criar tipo dedicado para metadados de importacao e resultado SELIC, mantendo campos `...Original` intactos. |
@@ -183,6 +183,24 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 - Diretriz:
   - Resolver `dataProtocoloPerOriginal` apenas quando o PER estiver presente/identificado na cadeia ou for informado como dado complementar rastreavel.
   - Se nao houver dado, retornar `dados_insuficientes`, sem analogia nem estimativa silenciosa.
+
+### ACH-009 - Ausencia de classificador normalizado de tipo de credito e vedacoes
+
+- Objeto relacionado: AUD-02, AUD-06, AUD-07, AUD-08, AUD-10
+- Criticidade: Critica
+- Evidencia normativa:
+  - `meios-para-solicitar-ou-compensar-cada-tipo-de-credito.pdf`, itens 1 a 4.
+  - `creditos-e-debitos-que-nao-podem-ser-informados-em-declaracao-de-compensacao.pdf`, itens 1 a 3.
+- Evidencia tecnica:
+  - `src/models/types.ts` trata `tipoCredito` como `string`.
+  - `src/services/CalculoService.ts` usa comparacoes textuais para regra de multiplos detalhamentos.
+  - Nao ha `CreditoRulesService`, catalogo de meios cabiveis ou matriz de vedações no codigo.
+- Risco:
+  - O app pode simular ou relatar uma cadeia como se fosse compensavel sem alertar que o tipo exige Programa PER/DCOMP, formulario/processo, habilitacao, pedido previo, Portal do Simples, eSocial Simplificado ou que a DCOMP e vedada.
+- Diretriz:
+  - Criar catalogo consultivo de tipos de credito e vedações antes de endurecer bloqueios.
+  - Priorizar os seis tipos encontrados em `Sheets/relatorio.xlsx`.
+  - Registrar alertas no relatorio/UI com fonte normativa; bloqueios duros so depois de validacao com caso real e autorizacao expressa.
 
 ## Fluxo de Trabalho da Auditoria
 
