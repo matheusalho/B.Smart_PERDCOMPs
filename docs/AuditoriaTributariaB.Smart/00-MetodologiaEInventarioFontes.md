@@ -118,6 +118,22 @@ Tabela Sicalc emitida em 04/06/2026, analisada em 2026-06-06. Pontos extraidos:
 - o proprio documento orienta usar a taxa correspondente ao mes e ano do vencimento do debito;
 - por ser tabela de acrescimos legais para pagamento, seu uso como base tecnica para calculo de credito por subtracao de acumuladas deve ser validado antes de virar regra de producao.
 
+#### `IN RFB n. 2.055/2021`, Capitulo X - Valoracao dos Creditos
+
+Consulta oficial indicada pelo usuario: `https://normasinternet2.receita.fazenda.gov.br/#/consulta/externa/122002`. Como a pagina oficial e uma aplicacao dinamica, a leitura textual operacional foi conferida tambem em versao consolidada publicada por LegisWeb, mantendo a fonte oficial da RFB como referencia primaria do ato.
+
+Pontos extraidos dos arts. 148 a 153 e art. 157, analisados em 2026-06-07:
+
+- o credito relativo a tributo administrado pela RFB, quando passivel de restituicao, reembolso ou compensacao, e valorado por juros equivalentes a SELIC acumulada mensalmente e 1% no mes de disponibilizacao, entrega da DCOMP/efetivacao em GFIP ou compensacao de oficio;
+- o art. 149 consolida termos iniciais por origem do credito, incluindo pagamento indevido ou a maior, saldo negativo IRPJ/CSLL, PIS/Cofins retidos, Cide, contribuicoes previdenciarias pagas indevidamente, retencao previdenciaria, reembolso e outros;
+- o art. 151 registra hipoteses de nao incidencia dos juros compensatorios, inclusive quando a data de valoracao coincide com o mes de origem do direito crediticio e, para IPI/PIS/Cofins/Reintegra, ressalva a regra especifica do art. 152;
+- o art. 152 determina que, se nao houver ressarcimento de creditos de IPI, PIS/Pasep, Cofins e Reintegra em 360 dias contados do protocolo do pedido de ressarcimento, aplica-se SELIC a parcela do credito nao ressarcida ou nao compensada;
+- para esses creditos de ressarcimento, o termo inicial e o mes subsequente ao do 361 dia contado do protocolo do pedido de ressarcimento original;
+- o termo final, no ressarcimento, e a disponibilizacao da quantia; na compensacao declarada, a entrega da DCOMP original; na compensacao de oficio, a data em que for considerada efetuada;
+- o art. 157 exige tratar DCOMP transmitida em dia nao util como entregue no primeiro dia util subsequente para fins do art. 148 e dispositivos correlatos.
+
+Impacto para a auditoria: IPI passa a ter regra de SELIC confirmada pelo art. 152, sem necessidade de implementar as regras operacionais de RAIPI/apuracao do roteiro de IPI.
+
 #### `per_dcomp-web_-contribuicao-previdenciaria-indevida-ou-a-maior-pessoa-juridica.pdf`
 
 Roteiro v31/05/2025, analisado em 2026-06-06, com foco nas paginas 9 e 11 a 14. Pontos extraidos:

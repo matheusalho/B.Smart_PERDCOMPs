@@ -80,6 +80,7 @@ Fontes desta rodada:
 - `Knowledge/per_dcomp-web_-ressarcimento-de-pis_pasep-e-cofins-nao-cumulativos.md`, v02/06/2025, secoes "Identificar Documento" e "Demonstrativo do Credito".
 - `Knowledge/per_dcomp-web_ressarcimento-de-ipi.md`, Brasilia/DF, 06/02/2026, secoes 1, 2, 3, 4 e 9.
 - `IN RFB n. 2.055/2021`, arts. 148 e seguintes, consulta oficial informada pelo usuario: `https://normasinternet2.receita.fazenda.gov.br/#/consulta/externa/122002`.
+- Consulta textual complementar da IN RFB n. 2.055/2021 em LegisWeb, usada apenas para leitura do texto consolidado dos arts. 148 a 153, pois a consulta oficial da RFB e uma aplicacao dinamica.
 - `Knowledge/Selic_Acumulada_ate_06.2026.pdf`, emitido em 04/06/2026, paginas 1 a 4.
 
 Premissa de escopo para IPI:
@@ -95,8 +96,11 @@ Regra normativa confirmada, em linguagem tecnica:
 - Para Retencao Previdenciaria PJ - Lei n. 9.711/1998, a taxa SELIC da DCOMP incide desde o segundo mes seguinte ao da competencia, ate o mes anterior a entrega da declaracao de compensacao, mais 1%.
 - Para Salario-Familia e Salario-Maternidade PJ, declaracao de compensacao e vedada. O credito e objeto de Pedido de Reembolso; ha atualizacao pela SELIC, mas o valor atualizado nao e calculado no PER/DCOMP Web porque a atualizacao ocorre ate a data de pagamento ao contribuinte, nao ate a data de transmissao do pedido.
 - Para Ressarcimento de PIS/Pasep e Cofins nao cumulativos, em DCOMP, a SELIC incide desde o mes seguinte ao do 361 dia contado da transmissao do pedido de ressarcimento original ate o mes anterior a data de entrega da declaracao de compensacao, mais 1%.
-- Para Ressarcimento de IPI, o manual convertido confirma pedido de ressarcimento previo como regra para DCOMP, mas a aplicacao nao deve tentar reproduzir a apuracao completa de RAIPI/trimestre. A regra de SELIC do tipo de credito deve ser auditada diretamente na IN RFB n. 2.055/2021, arts. 148 e seguintes.
+- Para Ressarcimento de IPI, a regra de SELIC segue a regra geral de ressarcimento do art. 152 da IN RFB n. 2.055/2021: se nao houver ressarcimento no prazo de 360 dias da data do protocolo do pedido de ressarcimento, aplica-se SELIC a parcela do credito nao ressarcida ou nao compensada. O termo inicial e o mes subsequente ao do 361 dia contado da data do protocolo do pedido de ressarcimento original.
+- Para Ressarcimento de IPI, PIS/Pasep, Cofins e Reintegra, o art. 152, paragrafo 2, fixa termo final por modalidade: no ressarcimento, disponibilizacao da quantia; na compensacao declarada, entrega da DCOMP original; na compensacao de oficio, momento em que considerada efetuada.
 - Para Saldo Negativo, Pagamento Indevido e Contribuicao Previdenciaria Indevida, se a DCOMP original for apresentada no mesmo mes do marco inicial material, nao cabe atualizacao do credito. Para Retencao Previdenciaria PJ, tambem nao ha atualizacao se a DCOMP original for apresentada no mesmo mes ou no mes seguinte a competencia.
+- O art. 151 confirma hipoteses de nao incidencia de juros compensatorios, incluindo compensacao declarada/oficio quando a data de valoracao ocorre no mesmo mes da origem do direito crediticio e, para IPI/PIS/Cofins/Reintegra, ressalva a aplicacao especifica do art. 152.
+- O art. 157 determina que, se a DCOMP formalizada por PER/DCOMP for transmitida em dia nao util, o documento e considerado entregue no primeiro dia util subsequente para fins dos arts. 148 e correlatos. Esse ponto precisa virar regra de data antes de implementacao.
 - Em retificacao, a data de referencia para calculo da SELIC e a data de transmissao da declaracao de compensacao original, nao a data da retificadora.
 - O "Credito Atualizado" e obtido aplicando a taxa SELIC ao "Credito Original na Data de Entrega".
 - O "Total do Credito Original Utilizado neste Documento" e calculado por descapitalizacao: divide-se o "Total dos Debitos deste Documento" por `(1 + taxa Selic em formato decimal)`.
@@ -110,7 +114,7 @@ Atos normativos citados nos manuais lidos:
 - Retencao Previdenciaria PJ: Lei n. 9.711/1998; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021.
 - Salario-Familia e Salario-Maternidade PJ: IN RFB n. 2.055/2021, art. 76, inciso XV; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021.
 - Ressarcimento de PIS/Pasep e Cofins nao cumulativos: Leis n. 10.637/2002 e 10.833/2003; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021; IN RFB n. 2.055/2021, Anexos I e IV, para SCP/processo quando o roteiro remete.
-- Ressarcimento de IPI: para elegibilidade operacional contextual, IN RFB n. 2.055/2021, arts. 40, 41, 42, 44, paragrafo 3, 45 e 67; para SELIC/valoracao do credito, IN RFB n. 2.055/2021, arts. 148 e seguintes; demais atos do roteiro de IPI permanecem fora do escopo de implementacao neste ciclo.
+- Ressarcimento de IPI: para elegibilidade operacional contextual, IN RFB n. 2.055/2021, arts. 40, 41, 42, 44, paragrafo 3, 45 e 67; para SELIC/valoracao do credito, IN RFB n. 2.055/2021, arts. 148, 151, 152 e 157; demais atos do roteiro de IPI permanecem fora do escopo de implementacao neste ciclo.
 
 Impacto no codigo atual:
 
@@ -121,7 +125,7 @@ Impacto no codigo atual:
 - A tabela `Selic_Acumulada_ate_06.2026.pdf` e uma tabela do Sicalc para acrescimos legais ate junho/2026 e instrui uso pela competencia de vencimento do debito. Seu uso como base para credito por subtracao de acumuladas precisa ser tratado como hipotese tecnica a validar, nao como regra normativa final isolada.
 - Salario-Familia e Salario-Maternidade PJ nao devem entrar na engine de DCOMP como compensacao simulavel; se aparecerem no relatorio, devem ser tratados como reembolso e/ou alerta de vedacao de DCOMP.
 - Ressarcimento de PIS/Cofins exige distinguir DCOMP sem PER previo, quando admitida por bases legais e prazo, de DCOMP posterior a PER. O marco de 361 dias depende da transmissao do pedido de ressarcimento original, nao do periodo de apuracao do credito.
-- Ressarcimento de IPI nao deve levar a engine a implementar a apuracao operacional completa do roteiro. A engine deve aceitar valor original/base importada ou informada e calcular apenas a SELIC do tipo de credito, quando a regra dos arts. 148 e seguintes da IN RFB n. 2.055/2021 estiver documentada em caso de teste.
+- Ressarcimento de IPI nao deve levar a engine a implementar a apuracao operacional completa do roteiro. A engine deve aceitar valor original/base importada ou informada e calcular apenas a SELIC do tipo de credito: art. 152, com termo inicial no mes subsequente ao 361 dia do protocolo do PER original e termo final conforme modalidade.
 
 Classificacao:
 
@@ -195,6 +199,31 @@ Criar uma camada de calculo de SELIC auditavel, sem sobrescrever campos `...Orig
 - UI e PDF devem indicar quando o valor e importado, calculado normativamente ou estimado.
 - Enquanto a engine normativa nao for implementada, a UI/PDF devem tratar os fatores historicos de simulacao como estimativa operacional, nao como SELIC validada.
 
+## Matriz Minima Implementavel de SELIC
+
+Esta matriz limita a primeira implementacao normativa aos tipos de credito e dados ja documentados. Onde faltar dado importado, o resultado deve ser "calculo normativo indisponivel" e nao uma inferencia silenciosa.
+
+| Grupo de regra | Tipos de credito | Termo inicial | Termo final para DCOMP | Dados minimos exigidos | Observacao de implementacao |
+| --- | --- | --- | --- | --- | --- |
+| Pagamento indevido ou a maior | Pagamento indevido/maior PJ; contribuicao previdenciaria indevida/maior em GPS | Mes subsequente ao pagamento | Mes anterior a entrega da DCOMP original, com 1% no mes da entrega | Data de pagamento/arrecadacao; valor original disponivel; data de entrega/transmissao original | Se houver multiplos termos iniciais em CPIM/GPS, exigir taxa por termo ou dado complementar. |
+| Saldo negativo | Saldo negativo IRPJ/CSLL | Mes subsequente ao encerramento do periodo de apuracao | Mes anterior a entrega da DCOMP original, com 1% no mes da entrega | Periodo de apuracao; valor original na data de entrega; data de entrega/transmissao original | Sem atualizacao se a DCOMP original ocorrer no mesmo mes do encerramento do periodo. |
+| Retencao previdenciaria | Retencao Lei n. 9.711/1998 | Segundo mes subsequente a competencia | Mes anterior a entrega da DCOMP original, com 1% no mes da entrega | Competencia; valor original; deducoes; data de entrega/transmissao original | Sem atualizacao se a DCOMP original ocorrer no mesmo mes ou no mes seguinte a competencia. |
+| Ressarcimento com PER | IPI; PIS/Pasep; Cofins; Reintegra, quando aplicavel | Mes subsequente ao 361 dia contado do protocolo/transmissao do PER original | Mes anterior a entrega da DCOMP original, com 1% no mes da entrega | Data de protocolo/transmissao do PER original; valor original/base disponivel; data de entrega/transmissao original | Art. 152 da IN RFB n. 2.055/2021. Nao implementar RAIPI/apuracao operacional de IPI. |
+| Credito judicial por componente | Componentes judiciais com forma SELIC | Conforme tipo de componente: pagamento, retencao previdenciaria, retencao nao previdenciaria ou demais parcelas | Mes anterior a entrega da DCOMP original, com 1% no mes da entrega | Componentes; forma de atualizacao; datas/marcos; valores original e atualizado; ordem de consumo | Se componentes nao vierem no e-CAC, marcar como dependente de dado complementar. |
+| Vedado ou fora de DCOMP | Salario-familia e salario-maternidade PJ | Nao aplicavel para DCOMP | Nao aplicavel para DCOMP | Tipo de credito | Tratar como reembolso/vedacao, nao como DCOMP compensavel. |
+
+Formula comum quando houver taxa normativa validada:
+
+- `creditoAtualizado = creditoOriginalNaDataEntrega * (1 + taxaSelicDecimal)`.
+- `creditoOriginalUtilizado = totalDebitosDocumento / (1 + taxaSelicDecimal)`.
+- `saldoCreditoOriginal = creditoOriginalNaDataEntrega - creditoOriginalUtilizado`.
+
+Invariantes:
+
+- Nunca sobrescrever `valorUtilizadoPerdcompOriginal`, `valorTotalCreditoDetalhadoOriginal`, `valorPrincipalOriginal`, `valorMultaOriginal`, `valorJurosOriginal` ou `valorTotalOriginal`.
+- Persistir o resultado calculado em campos separados, com `metodo`, `fonteNormativa`, `hipoteses`, `dadosAusentes` e `statusCalculo`.
+- Tratar transmissao em dia nao util conforme art. 157 antes de calcular o mes de valoracao.
+
 ## Casos de Teste Recomendados
 
 - Saldo negativo IRPJ/CSLL com PA anual e DCOMP transmitida em mes posterior: marco inicial no mes seguinte ao encerramento do periodo de apuracao; transmissao original como marco final.
@@ -209,7 +238,8 @@ Criar uma camada de calculo de SELIC auditavel, sem sobrescrever campos `...Orig
 - Salario-Familia e Salario-Maternidade PJ: validar que declaracao de compensacao e vedada e que eventual atualizacao em reembolso nao e calculada pelo PER/DCOMP Web na transmissao.
 - Ressarcimento de PIS/Pasep e Cofins nao cumulativos: DCOMP com PER previo e marco inicial no mes seguinte ao do 361 dia contado da transmissao do PER original.
 - Ressarcimento de PIS/Pasep e Cofins nao cumulativos: DCOMP sem PER previo nas bases legais admitidas e antes do encerramento do trimestre, com necessidade de confirmar se o campo SELIC fica inaplicavel ou se ha regra distinta no fluxo real.
-- Ressarcimento de IPI: validar SELIC conforme IN RFB n. 2.055/2021, arts. 148 e seguintes, sem implementar as demais regras operacionais do roteiro de IPI e sem reaproveitar regra de PIS/Cofins sem fonte.
+- Ressarcimento de IPI: validar SELIC conforme IN RFB n. 2.055/2021, art. 152, com termo inicial no mes subsequente ao 361 dia do PER original e termo final da DCOMP original; nao implementar as demais regras operacionais do roteiro de IPI.
+- Transmissao em dia nao util: validar que a data considerada para fins do art. 148 segue o primeiro dia util subsequente quando aplicavel.
 - Credito judicial layout novo, componente pagamento: SELIC desde o mes seguinte a data de arrecadacao.
 - Credito judicial layout novo, retencao previdenciaria: SELIC desde o segundo mes seguinte ao mes da competencia.
 - Credito judicial layout novo, demais parcelas: usar `Mes Inicial de Incidencia da Selic` conforme decisao judicial ou arts. 149 a 152 da IN RFB n. 1.717/2017 se omissa.
