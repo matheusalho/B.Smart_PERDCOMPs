@@ -71,6 +71,12 @@ Fontes especificas lidas:
 
 - `per_dcomp-web_-saldo-negativo-de-irpj-ou-csll.pdf`, paginas 21 a 24.
 - `per_dcomp-web_-pagamento-indevido-ou-a-maior-pessoa-juridica.pdf`, paginas 10 a 12.
+- `per_dcomp-web_-contribuicao-previdenciaria-indevida-ou-a-maior-pessoa-juridica.pdf`, paginas 9 e 11 a 14.
+- `per_dcomp-web_-credito-oriundo-de-acao-judicial.pdf`, paginas 3, 4, 10 a 12, 22 a 24, 29, 33 a 34, 43, 46 a 49 e 51 a 52.
+- `per_dcomp-web_-retencao-previdenciaria-pessoa-juridica.pdf`, paginas 1, 6 a 12.
+- `per_dcomp-web_-salario-familia-e-salario-maternidade-pessoa-juridica.pdf`, paginas 1, 5, 7 e 8.
+- `per_dcomp-web_-ressarcimento-de-pis_pasep-e-cofins-nao-cumulativos.pdf`, demonstrativo do credito.
+- `per_dcomp-web_ressarcimento-de-ipi.pdf`, introducao, identificacao do credito e demonstrativo.
 
 Conclusao para simulacoes:
 
@@ -78,6 +84,13 @@ Conclusao para simulacoes:
 - O fator historico atual (`totalDebitosOriginal / valorUtilizadoPerdcompOriginal`) e uma estimativa operacional aceitavel apenas enquanto preservada a rastreabilidade e enquanto o relatorio nao a apresentar como regra normativa.
 - A DCOMP hipotetica nao deve derivar SELIC apenas da ultima DCOMP real. Ela precisa de data de transmissao hipotetica, tipo de credito, marco inicial normativo e fonte da tabela/taxa.
 - Em retificacao, a data de transmissao da DCOMP original permanece relevante para a SELIC; uma simulacao de retificadora nao deve recalcular a taxa com base apenas na data em que o usuario simulou a alteracao.
+- Para contribuicao previdenciaria indevida ou a maior em GPS, a simulacao precisa considerar compensacoes anteriores em GFIP e possivel existencia de multiplos termos iniciais de SELIC no mesmo PER/DCOMP.
+- Para retencao previdenciaria PJ, a simulacao precisa considerar competencia unica, EFD-Reinf R-2020/DCTFWeb ou GFIP e marco SELIC no segundo mes seguinte ao da competencia.
+- Para salario-familia e salario-maternidade PJ, a simulacao de DCOMP deve ser bloqueada ou marcada como vedada/fora de escopo, pois o manual trata Pedido de Reembolso e veda declaracao de compensacao.
+- Para credito oriundo de acao judicial, uma DCOMP hipotetica so pode ser tratada como normativa se houver dados de componente do credito, forma de atualizacao, valor original/atualizado e ordem de consumo. Sem isso, o resultado deve permanecer como estimativa ou dependente de informacao complementar.
+- Para ressarcimento de PIS/Pasep e Cofins nao cumulativos, uma DCOMP hipotetica posterior a PER precisa identificar o pedido de ressarcimento original, sua data de transmissao e o saldo original remanescente. O marco inicial da SELIC e o mes seguinte ao do 361 dia contado da transmissao do PER original, nao o trimestre do credito.
+- Para ressarcimento de PIS/Pasep e Cofins nao cumulativos sem PER previo, nas hipoteses admitidas pelo roteiro, a simulacao ainda nao deve aplicar automaticamente a regra de DCOMP posterior a PER; e necessario confirmar o fluxo real/campo de SELIC antes de automatizar.
+- Para ressarcimento de IPI, a simulacao nao deve tentar reconstruir a apuracao completa do roteiro de IPI, como RAIPI, trimestre, estornos e menor saldo ajustado. Neste ciclo, a aplicacao deve usar o valor original/base importada ou informada e calcular apenas a SELIC do credito, depois de documentada a regra da IN RFB n. 2.055/2021, arts. 148 e seguintes.
 - Nenhuma dessas correcoes deve alterar `valorUtilizadoPerdcompOriginal`, `valorTotalCreditoDetalhadoOriginal`, `valorPrincipalOriginal`, `valorMultaOriginal`, `valorJurosOriginal` ou `valorTotalOriginal`.
 
 ## Perguntas de Auditoria

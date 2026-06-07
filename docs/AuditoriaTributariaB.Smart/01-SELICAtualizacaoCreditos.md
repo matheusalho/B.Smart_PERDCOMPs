@@ -74,13 +74,29 @@ Fontes desta rodada:
 
 - `Knowledge/per_dcomp-web_-saldo-negativo-de-irpj-ou-csll.pdf`, v23/09/2025, paginas 21 a 24.
 - `Knowledge/per_dcomp-web_-pagamento-indevido-ou-a-maior-pessoa-juridica.pdf`, v31/05/2025, paginas 10 a 12.
+- `Knowledge/per_dcomp-web_-contribuicao-previdenciaria-indevida-ou-a-maior-pessoa-juridica.pdf`, v31/05/2025, paginas 9 e 11 a 14.
+- `Knowledge/per_dcomp-web_-retencao-previdenciaria-pessoa-juridica.pdf`, v31/05/2025, paginas 1, 6 a 12.
+- `Knowledge/per_dcomp-web_-salario-familia-e-salario-maternidade-pessoa-juridica.pdf`, v21/06/2024, paginas 1, 5, 7 e 8.
+- `Knowledge/per_dcomp-web_-ressarcimento-de-pis_pasep-e-cofins-nao-cumulativos.md`, v02/06/2025, secoes "Identificar Documento" e "Demonstrativo do Credito".
+- `Knowledge/per_dcomp-web_ressarcimento-de-ipi.md`, Brasilia/DF, 06/02/2026, secoes 1, 2, 3, 4 e 9.
+- `IN RFB n. 2.055/2021`, arts. 148 e seguintes, consulta oficial informada pelo usuario: `https://normasinternet2.receita.fazenda.gov.br/#/consulta/externa/122002`.
 - `Knowledge/Selic_Acumulada_ate_06.2026.pdf`, emitido em 04/06/2026, paginas 1 a 4.
+
+Premissa de escopo para IPI:
+
+- O roteiro de Ressarcimento de IPI possui numerosas regras operacionais de apuracao, RAIPI, preenchimento, estorno e demonstrativo. Essas regras nao serao implementadas pela aplicacao neste ciclo.
+- Para IPI, o objetivo da aplicacao e somente calcular a SELIC do credito quando houver dados suficientes, com base na IN RFB n. 2.055/2021, arts. 148 e seguintes, mantendo a apuracao do credito original como dado importado ou informado e preservando campos `...Original`.
 
 Regra normativa confirmada, em linguagem tecnica:
 
 - Para Saldo Negativo de IRPJ/CSLL, a taxa SELIC da DCOMP incide desde o mes seguinte ao final do periodo de apuracao do credito, ate o mes anterior a data de entrega da declaracao de compensacao, com acrescimo de 1% relativo ao mes corrente.
 - Para Pagamento Indevido ou a Maior PJ, a taxa SELIC da DCOMP incide desde o mes seguinte a data do pagamento, ate o mes anterior a data de entrega da declaracao de compensacao, com acrescimo de 1% relativo ao mes corrente.
-- Para ambos os manuais, se a DCOMP original for apresentada no mesmo mes do marco inicial material (final do periodo de apuracao, no saldo negativo; pagamento, no pagamento indevido), nao cabe atualizacao do credito.
+- Para Contribuicao Previdenciaria Indevida ou a Maior PJ em GPS, a taxa SELIC tambem incide desde o mes seguinte a data do pagamento ate o mes anterior a entrega da DCOMP, mais 1%, mas o manual alerta que, havendo mais de um termo inicial de SELIC no mesmo PER/DCOMP, cabe ao contribuinte alterar a taxa se necessario.
+- Para Retencao Previdenciaria PJ - Lei n. 9.711/1998, a taxa SELIC da DCOMP incide desde o segundo mes seguinte ao da competencia, ate o mes anterior a entrega da declaracao de compensacao, mais 1%.
+- Para Salario-Familia e Salario-Maternidade PJ, declaracao de compensacao e vedada. O credito e objeto de Pedido de Reembolso; ha atualizacao pela SELIC, mas o valor atualizado nao e calculado no PER/DCOMP Web porque a atualizacao ocorre ate a data de pagamento ao contribuinte, nao ate a data de transmissao do pedido.
+- Para Ressarcimento de PIS/Pasep e Cofins nao cumulativos, em DCOMP, a SELIC incide desde o mes seguinte ao do 361 dia contado da transmissao do pedido de ressarcimento original ate o mes anterior a data de entrega da declaracao de compensacao, mais 1%.
+- Para Ressarcimento de IPI, o manual convertido confirma pedido de ressarcimento previo como regra para DCOMP, mas a aplicacao nao deve tentar reproduzir a apuracao completa de RAIPI/trimestre. A regra de SELIC do tipo de credito deve ser auditada diretamente na IN RFB n. 2.055/2021, arts. 148 e seguintes.
+- Para Saldo Negativo, Pagamento Indevido e Contribuicao Previdenciaria Indevida, se a DCOMP original for apresentada no mesmo mes do marco inicial material, nao cabe atualizacao do credito. Para Retencao Previdenciaria PJ, tambem nao ha atualizacao se a DCOMP original for apresentada no mesmo mes ou no mes seguinte a competencia.
 - Em retificacao, a data de referencia para calculo da SELIC e a data de transmissao da declaracao de compensacao original, nao a data da retificadora.
 - O "Credito Atualizado" e obtido aplicando a taxa SELIC ao "Credito Original na Data de Entrega".
 - O "Total do Credito Original Utilizado neste Documento" e calculado por descapitalizacao: divide-se o "Total dos Debitos deste Documento" por `(1 + taxa Selic em formato decimal)`.
@@ -90,6 +106,11 @@ Atos normativos citados nos manuais lidos:
 
 - Saldo Negativo IRPJ/CSLL: Lei n. 5.172/1966, art. 168, inciso I; IN RFB n. 2.055/2021, art. 27, incisos I a III; IN RFB n. 2.055/2021, art. 28; Lei n. 9.430/1996, art. 1, paragrafos 1 e 2; Lei n. 8.981/1995, art. 57.
 - Pagamento Indevido ou a Maior PJ: Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021; IN RFB n. 2.055/2021, Anexos I e IV, quando o roteiro remete a formulario/processo.
+- Contribuicao Previdenciaria Indevida ou a Maior PJ: Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021; IN RFB n. 2.055/2021, Anexos I e IV, quando o roteiro remete a formulario/processo.
+- Retencao Previdenciaria PJ: Lei n. 9.711/1998; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021.
+- Salario-Familia e Salario-Maternidade PJ: IN RFB n. 2.055/2021, art. 76, inciso XV; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021.
+- Ressarcimento de PIS/Pasep e Cofins nao cumulativos: Leis n. 10.637/2002 e 10.833/2003; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021; IN RFB n. 2.055/2021, Anexos I e IV, para SCP/processo quando o roteiro remete.
+- Ressarcimento de IPI: para elegibilidade operacional contextual, IN RFB n. 2.055/2021, arts. 40, 41, 42, 44, paragrafo 3, 45 e 67; para SELIC/valoracao do credito, IN RFB n. 2.055/2021, arts. 148 e seguintes; demais atos do roteiro de IPI permanecem fora do escopo de implementacao neste ciclo.
 
 Impacto no codigo atual:
 
@@ -98,11 +119,56 @@ Impacto no codigo atual:
 - O fluxo ativo de DCOMP editada descapitaliza por fator historico (`totalDebitosOriginal / valorUtilizadoPerdcompOriginal`) e nao por taxa SELIC calculada a partir do tipo de credito, marco inicial e transmissao original.
 - O fluxo ativo de DCOMP hipotetica deriva fator da ultima DCOMP real e soma taxa acumulada do mes da ultima transmissao, sem usar a data hipotetica nem o marco inicial normativo do tipo de credito.
 - A tabela `Selic_Acumulada_ate_06.2026.pdf` e uma tabela do Sicalc para acrescimos legais ate junho/2026 e instrui uso pela competencia de vencimento do debito. Seu uso como base para credito por subtracao de acumuladas precisa ser tratado como hipotese tecnica a validar, nao como regra normativa final isolada.
+- Salario-Familia e Salario-Maternidade PJ nao devem entrar na engine de DCOMP como compensacao simulavel; se aparecerem no relatorio, devem ser tratados como reembolso e/ou alerta de vedacao de DCOMP.
+- Ressarcimento de PIS/Cofins exige distinguir DCOMP sem PER previo, quando admitida por bases legais e prazo, de DCOMP posterior a PER. O marco de 361 dias depende da transmissao do pedido de ressarcimento original, nao do periodo de apuracao do credito.
+- Ressarcimento de IPI nao deve levar a engine a implementar a apuracao operacional completa do roteiro. A engine deve aceitar valor original/base importada ou informada e calcular apenas a SELIC do tipo de credito, quando a regra dos arts. 148 e seguintes da IN RFB n. 2.055/2021 estiver documentada em caso de teste.
 
 Classificacao:
 
 - Criticidade: Critica para simulacoes e DCOMP hipotetica.
 - Risco residual na visualizacao/importacao: menor, desde que os valores importados da RFB continuem preservados e claramente identificados.
+
+### ACH-006 - Credito judicial exige regra por componente e forma de atualizacao
+
+Status: Aberto.
+
+Fonte desta rodada:
+
+- `Knowledge/per_dcomp-web_-credito-oriundo-de-acao-judicial.pdf`, Brasilia/DF, 13/01/2026, paginas 3, 4, 10 a 12, 22 a 24, 29, 33 a 34, 43, 46 a 49 e 51 a 52.
+
+Regra normativa confirmada, em linguagem tecnica:
+
+- O credito oriundo de acao judicial exige decisao judicial transitada em julgado e habilitacao previa perante a RFB antes da DCOMP.
+- O pedido de restituicao, ressarcimento ou reembolso e vedado na via administrativa para esse credito; o uso administrativo cabivel e DCOMP.
+- A partir de 15/02/2025, o manual distingue layout novo, com detalhamento dos componentes do credito, e layout antigo, sem detalhamento. O layout novo e aplicavel a creditos cujo consumo se iniciou a partir dessa data.
+- No layout antigo, o valor atualizado inicial deve equivaler ao montante total do credito atualizado ate a transmissao original da DCOMP; em retificacao, nao se atualizam campos pela data da retificadora.
+- No layout novo, a atualizacao e calculada por componente de credito. Pagamento/GPS, pagamento por demais documentos e parcelamentos usam, quando marcada atualizacao pela SELIC, o mes seguinte a data de arrecadacao ate o mes anterior a entrega da DCOMP original, mais 1%.
+- Retencao judicial tem regra distinta: retencao previdenciaria usa SELIC a partir do segundo mes seguinte ao mes da competencia; retencao nao previdenciaria usa SELIC a partir do mes seguinte ao mes da retencao.
+- "Demais parcelas" exige campo proprio "Mes Inicial de Incidencia da Selic"; esse marco deve observar a decisao judicial e, se a decisao for omissa, os arts. 149 a 152 da IN RFB n. 1.717/2017.
+- O manual admite tres formas de atualizacao por componente: SELIC, outro indice ou sem atualizacao. Se parte do credito for atualizada pela SELIC e parte nao, o contribuinte deve usar "Atualizacao por Outro Indice" e informar manualmente indices aplicaveis, inclusive zero.
+- O credito utilizado original de cada componente e calculado pela proporcao `Credito na Data de Entrega - Original / Credito na Data de Entrega - Atualizado * Credito Utilizado nesta DCOMP - Atualizado`.
+- Quando ha descarte do detalhamento, o "Total do Credito Original Utilizado neste Documento" e calculado por `Credito Original na Data de Entrega / Credito Atualizado na Data de Entrega * Total dos Debitos deste Documento`, com verificacao/edicao pelo contribuinte.
+- O PER/DCOMP Web ordena componentes de credito do mais antigo para o mais recente para consumir o credito atualizado.
+
+Atos normativos citados no manual lido:
+
+- Decreto n. 20.910/1932, art. 1.
+- IN RFB n. 2.055/2021, art. 106.
+- Parecer Normativo Cosit n. 11/2014.
+- Lei n. 9.430/1996, art. 74-A.
+- Portaria Normativa MF n. 14/2024.
+- IN RFB n. 1.717/2017, arts. 149 a 152, para marcos iniciais quando a decisao judicial for omissa em "Demais Parcelas".
+
+Impacto no codigo atual:
+
+- Uma regra unica baseada apenas em `tipoCredito` nao sera suficiente para credito judicial. O motor futuro precisa reconhecer, no minimo, layout, componente, forma de atualizacao, marco inicial, valor original, valor atualizado e ordem de consumo.
+- O relatorio e a UI devem distinguir credito judicial calculado por SELIC, por outro indice informado pelo contribuinte ou sem atualizacao.
+- Se o relatorio e-CAC importado nao trouxer componentes do credito judicial, o app deve tratar o calculo normativo completo como indisponivel ou dependente de dado complementar, preservando a base importada.
+
+Classificacao:
+
+- Criticidade: Critica para credito judicial e para qualquer DCOMP hipotetica que tente consumir esse tipo de credito.
+- Risco residual na visualizacao/importacao: menor, desde que os valores da RFB sejam mantidos como importados e as lacunas de componente/indice sejam explicitadas.
 
 ## Perguntas de Auditoria
 
@@ -118,9 +184,10 @@ Classificacao:
 Criar uma camada de calculo de SELIC auditavel, sem sobrescrever campos `...Original`:
 
 - `SelicService`: utilitario puro para obter taxa mensal/acumulada e calcular intervalos.
-- `CreditoRulesService`: regras por tipo de credito, definindo marco inicial, marco final e excecoes.
+- `CreditoRulesService`: regras por tipo de credito, definindo marco inicial, marco final, excecoes e granularidade de componente quando aplicavel.
 - `SelicCalculationInput`: tipo explicito com `tipoCredito`, `valorCreditoOriginalNaDataEntrega`, `periodoApuracaoCredito`, `dataPagamento`, `dataTransmissaoOriginal`, `isRetificadora` e `fonteValorOriginal`.
 - `SelicCalculationResult`: tipo explicito com `taxaSelicDecimal`, `valorCreditoAtualizado`, `creditoOriginalUtilizado`, `saldoCreditoOriginal`, `metodo`, `fonteNormativa` e `hipoteses`.
+- Para credito judicial, criar entrada propria por componente, por exemplo `ComponenteCreditoJudicialInput`, com `tipoComponente`, `formaAtualizacao`, `mesInicialSelic`, `dataArrecadacao`, `mesCompetenciaRetencao`, `valorOriginalNaDataEntrega`, `valorAtualizadoNaDataEntrega`, `indiceManual`, `fonteDecisaoJudicial` e `ordemConsumo`.
 - Campos calculados separados para simulacao, por exemplo:
   - `valorUtilizadoPerdcompCalculado`
   - `metodoCalculoSelic`
@@ -134,9 +201,19 @@ Criar uma camada de calculo de SELIC auditavel, sem sobrescrever campos `...Orig
 - Saldo negativo IRPJ/CSLL com transmissao no mesmo mes do encerramento do periodo de apuracao: taxa igual a zero.
 - Pagamento indevido ou a maior com pagamento e transmissao no mesmo mes: taxa igual a zero.
 - Pagamento indevido ou a maior com pagamento em mes anterior a transmissao: marco inicial no mes seguinte ao pagamento.
+- Contribuicao Previdenciaria Indevida ou a Maior PJ com uma GPS: marco inicial no mes seguinte a data de pagamento.
+- Contribuicao Previdenciaria Indevida ou a Maior PJ com multiplas GPS/termos iniciais: regra deve exigir taxa por termo inicial ou marcacao de ajuste manual, nao taxa unica cega.
 - Retificadora: manter data de transmissao da DCOMP original para calculo da taxa.
 - Descapitalizacao: `creditoOriginalUtilizado = totalDebitosDocumento / (1 + taxaSelicDecimal)`.
-- Credito judicial com regra propria e possivel restricao de habilitacao.
+- Retencao Previdenciaria PJ - Lei n. 9.711/1998: marco inicial no segundo mes seguinte ao da competencia; sem atualizacao se DCOMP original for apresentada no mesmo mes ou no mes seguinte a competencia.
+- Salario-Familia e Salario-Maternidade PJ: validar que declaracao de compensacao e vedada e que eventual atualizacao em reembolso nao e calculada pelo PER/DCOMP Web na transmissao.
+- Ressarcimento de PIS/Pasep e Cofins nao cumulativos: DCOMP com PER previo e marco inicial no mes seguinte ao do 361 dia contado da transmissao do PER original.
+- Ressarcimento de PIS/Pasep e Cofins nao cumulativos: DCOMP sem PER previo nas bases legais admitidas e antes do encerramento do trimestre, com necessidade de confirmar se o campo SELIC fica inaplicavel ou se ha regra distinta no fluxo real.
+- Ressarcimento de IPI: validar SELIC conforme IN RFB n. 2.055/2021, arts. 148 e seguintes, sem implementar as demais regras operacionais do roteiro de IPI e sem reaproveitar regra de PIS/Cofins sem fonte.
+- Credito judicial layout novo, componente pagamento: SELIC desde o mes seguinte a data de arrecadacao.
+- Credito judicial layout novo, retencao previdenciaria: SELIC desde o segundo mes seguinte ao mes da competencia.
+- Credito judicial layout novo, demais parcelas: usar `Mes Inicial de Incidencia da Selic` conforme decisao judicial ou arts. 149 a 152 da IN RFB n. 1.717/2017 se omissa.
+- Credito judicial com "Atualizacao por Outro Indice" ou "Sem Atualizacao": nao aplicar motor SELIC automaticamente.
 - DCOMP editada com reducao parcial do principal.
 - DCOMP hipotetica em data posterior a ultima DCOMP real.
 

@@ -1,6 +1,6 @@
 # Controle Geral da Auditoria Tributaria B.Smart PER/DCOMPs
 
-Atualizado em: 2026-06-06
+Atualizado em: 2026-06-07
 
 ## Objetivo
 
@@ -37,7 +37,7 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 
 | ID | Objeto | Arquivo | Criticidade | Status | Descricao precisa | Fragilidades possiveis | Achados/Inconsistencias atuais | Possiveis solucoes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| AUD-01 | SELIC e atualizacao de creditos | `01-SELICAtualizacaoCreditos.md` | Critica | Solucao proposta | Validar marco inicial, marco final, acrescimo de 1%, tipo de credito e uso da tabela SELIC. | Calculo simplificado pode distorcer consumo de credito em simulacoes; regras variam por tipo de credito. | `CalculoService.ts` ainda contem funcao simplificada `calcularSelicAcumulada`; ela parece nao ser chamada no fluxo ativo. O fluxo ativo usa fator empirico para edicoes e aproximacao para DCOMP hipotetica. Manuais de Saldo Negativo IRPJ/CSLL e Pagamento Indevido PJ confirmam marcos iniciais distintos por tipo de credito e descapitalizacao por `Total dos Debitos / (1 + taxa Selic)`. | Criar engine normativa de SELIC por tipo de credito, com input/result rastreavel, mantendo valores importados e `...Original` intactos. |
+| AUD-01 | SELIC e atualizacao de creditos | `01-SELICAtualizacaoCreditos.md` | Critica | Solucao proposta | Validar marco inicial, marco final, acrescimo de 1%, tipo de credito, componentes de credito judicial e uso da tabela SELIC. | Calculo simplificado pode distorcer consumo de credito em simulacoes; regras variam por tipo de credito e, no credito judicial, por componente/forma de atualizacao. | `CalculoService.ts` ainda contem funcao simplificada `calcularSelicAcumulada`; ela parece nao ser chamada no fluxo ativo. O fluxo ativo usa fator empirico para edicoes e aproximacao para DCOMP hipotetica. Manuais de Saldo Negativo IRPJ/CSLL, Pagamento Indevido PJ, Contribuicao Previdenciaria Indevida PJ e Retencao Previdenciaria PJ confirmam marcos iniciais distintos. Manual de credito judicial confirma calculo por componente. Salario-Familia/Maternidade PJ confirma DCOMP vedada e atualizacao apenas no reembolso pago. Ressarcimento de PIS/Cofins nao cumulativos confirma marco de 361 dias contado do PER original para DCOMP posterior. Para Ressarcimento de IPI, o escopo tecnico sera limitado ao calculo da SELIC do credito, a auditar na IN RFB n. 2.055/2021, arts. 148 e seguintes, sem implementar as demais regras operacionais extensas do roteiro de IPI. | Criar engine normativa de SELIC por tipo de credito/componente, com input/result rastreavel, mantendo valores importados e `...Original` intactos. |
 | AUD-02 | Tipos de credito, elegibilidade e restricoes | `02-TiposCreditoElegibilidadeRestricoes.md` | Critica | Em analise | Mapear quais creditos podem ser compensados, ressarcidos ou restituidos e quais debitos nao podem ser informados. | Permitir simulacao de combinacoes vedadas ou incompatibilidade entre credito e debito. | Manual de meios confirma que tipo de credito define canal cabivel e pre-requisitos; ainda nao ha catalogo normativo no codigo. | Construir matriz tipo de credito x meio permitido x restricoes x manual aplicavel. |
 | AUD-03 | Importacao do relatorio e-CAC e linhagem | `03-ImportacaoRelatorioECACELinhagem.md` | Alta | Nao iniciado | Auditar parser, normalizacao, datas, agrupamento por cadeia, retificacoes e cancelamentos. | Mudanca de coluna da RFB pode quebrar importacao; erro de linhagem altera cascata inteira. | Parser funcional, mas precisa matriz de colunas obrigatorias e alternativas. | Especificar contrato de importacao, validacoes e mensagens de erro. |
 | AUD-04 | Consumo de credito original e cascata | `04-ConsumoCreditoOriginalECascata.md` | Critica | Nao iniciado | Validar como o saldo original e consumido, propagado e comparado com o saldo informado pela RFB. | Erro de abatimento pode indicar retificacao indevida ou esconder insuficiencia de credito. | Motor funcional, mas ainda nao auditado contra cada tipo de credito. | Separar regras gerais de regras especificas por tipo de credito. |
@@ -45,7 +45,7 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 | AUD-06 | Retificacoes, vigencia e bloqueios | `06-RetificacoesVigenciaBloqueios.md` | Alta | Em analise | Validar status da RFB, documentos vigentes, bloqueados, retificados, cancelados e impactos em cascata. | Classificacao incorreta pode permitir edicao indevida ou ignorar documento relevante. | Manual inicial confirma cancelamento irreversivel e restricoes a documento analisado/intimado; vedacoes podem exigir bloqueios consultivos adicionais. | Mapear cada situacao contra manual/ato e comportamento esperado. |
 | AUD-07 | Simulacao, edicoes manuais e DCOMP hipotetica | `07-SimulacaoEdicoesDcompHipotetica.md` | Critica | Achado registrado | Auditar os efeitos tributarios de reduzir debitos, recalcular juros/multa e criar DCOMP hipotetica. | Simulacao pode parecer normativa sem calculo SELIC totalmente validado. | Edicao manual usa fator historico; hipotetica usa aproximacao de fator SELIC da ultima DCOMP real. Manual de debitos exige separar valores informados/compensados e observar multa, juros, reducao e data de transmissao original. | Exigir rastreabilidade do metodo usado e migrar para calculo normativo quando validado. |
 | AUD-08 | Relatorios PDF/Excel e rastreabilidade | `08-RelatoriosPDFExcelRastreabilidade.md` | Alta | Nao iniciado | Garantir que relatorios mostrem original, simulado, delta, status e fonte do calculo. | Relatorio pode omitir premissas ou misturar saldo original com saldo simulado. | PDF existe; Excel esta no backlog com prazo a definir. | Criar secao de premissas, metodologia e matriz de campos exportados. |
-| AUD-09 | Casos de teste normativos e evidencias | `09-CasosTesteMatrizEvidencias.md` | Critica | Nao iniciado | Criar matriz de testes por tipo de credito, regra e caso real. | Ajustes futuros sem teste podem quebrar regras tributarias sensiveis. | Ainda nao ha suite normativa. | Criar casos manuais e depois automatizar fixtures representativas. |
+| AUD-09 | Casos de teste normativos e evidencias | `09-CasosTesteMatrizEvidencias.md` | Critica | Em analise | Criar matriz de testes por tipo de credito, regra e caso real. | Ajustes futuros sem teste podem quebrar regras tributarias sensiveis. | Casos normativos de SELIC ja foram especificados para tipos gerais, previdenciarios, credito judicial, PIS/Cofins e IPI; ainda nao ha automacao. | Criar casos manuais e depois automatizar fixtures representativas. |
 | AUD-10 | Base geral PER/DCOMP Web | `10-BaseGeralPERDCOMPWeb.md` | Alta | Em analise | Consolidar orientacoes gerais aplicaveis a multiplos tipos de credito e objetos de auditoria. | Corrigir regras especificas sem base transversal pode gerar inconsistencias entre tipos de credito, debitos, UI e relatorio. | Primeira rodada de leitura concluida para quatro manuais gerais: meios, vedacoes, informar debitos e orientacoes iniciais. | Usar o consolidado como camada de referencia antes de auditar manuais especificos por tipo de credito. |
 
 ## Achados Transversais Iniciais
@@ -107,11 +107,21 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 - Evidencia normativa:
   - `per_dcomp-web_-saldo-negativo-de-irpj-ou-csll.pdf`, paginas 21 a 24.
   - `per_dcomp-web_-pagamento-indevido-ou-a-maior-pessoa-juridica.pdf`, paginas 10 a 12.
+  - `per_dcomp-web_-contribuicao-previdenciaria-indevida-ou-a-maior-pessoa-juridica.pdf`, paginas 9 e 11 a 14.
+  - `per_dcomp-web_-retencao-previdenciaria-pessoa-juridica.pdf`, paginas 1, 6 a 12.
+  - `per_dcomp-web_-salario-familia-e-salario-maternidade-pessoa-juridica.pdf`, paginas 1, 5, 7 e 8.
+  - `per_dcomp-web_-ressarcimento-de-pis_pasep-e-cofins-nao-cumulativos.pdf`, paginas/secoes do demonstrativo do credito.
+  - `per_dcomp-web_ressarcimento-de-ipi.pdf`, secoes introdutorias, identificacao do credito e demonstrativo.
   - `Selic_Acumulada_ate_06.2026.pdf`, paginas 1 a 4.
 - Regra confirmada:
   - Saldo Negativo IRPJ/CSLL usa SELIC desde o mes seguinte ao final do periodo de apuracao.
   - Pagamento Indevido ou a Maior PJ usa SELIC desde o mes seguinte a data do pagamento.
-  - Ambos usam ate o mes anterior a entrega da DCOMP, mais 1% no mes corrente, exceto quando a DCOMP original e apresentada no mesmo mes do marco material.
+  - Contribuicao Previdenciaria Indevida ou a Maior PJ em GPS usa SELIC desde o mes seguinte a data do pagamento e alerta para multiplos termos iniciais no mesmo PER/DCOMP.
+  - Retencao Previdenciaria PJ usa SELIC desde o segundo mes seguinte ao da competencia.
+  - Salario-Familia e Salario-Maternidade PJ tem DCOMP vedada; eventual SELIC de reembolso e calculada ate a data de pagamento ao contribuinte, nao pela transmissao do pedido.
+  - Ressarcimento de PIS/Pasep e Cofins nao cumulativos, em DCOMP posterior a PER, usa SELIC desde o mes seguinte ao do 361 dia contado da transmissao do pedido de ressarcimento original.
+  - Ressarcimento de IPI exige pedido de ressarcimento previo para DCOMP; para a aplicacao, o escopo e apenas calcular SELIC do credito, conforme IN RFB n. 2.055/2021, arts. 148 e seguintes, sem reproduzir toda a apuracao operacional de RAIPI/trimestre do roteiro de IPI.
+  - Regras de DCOMP usam ate o mes anterior a entrega da DCOMP, mais 1% no mes corrente, com excecoes de nao atualizacao quando a transmissao original ocorre antes do termo cabivel.
   - Retificacao usa a data de transmissao da DCOMP original.
   - Credito original utilizado e obtido por descapitalizacao do total de debitos por `(1 + taxa Selic)`.
 - Evidencia tecnica:
@@ -122,6 +132,29 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 - Diretriz:
   - Implementar futuramente uma camada normativa de SELIC por tipo de credito, com fonte, hipoteses e resultado calculado separados dos campos importados.
   - Manter a regra atual identificada como estimativa operacional ate validacao/implementacao autorizada.
+
+### ACH-006 - Credito judicial exige regra por componente e forma de atualizacao
+
+- Objeto relacionado: AUD-01, AUD-02, AUD-04, AUD-07
+- Criticidade: Critica
+- Evidencia normativa:
+  - `per_dcomp-web_-credito-oriundo-de-acao-judicial.pdf`, paginas 3, 4, 10 a 12, 22 a 24, 29, 33 a 34, 43, 46 a 49 e 51 a 52.
+- Regra confirmada:
+  - Credito judicial exige transito em julgado e habilitacao previa.
+  - PER administrativo e vedado; o uso administrativo cabivel e DCOMP.
+  - Layout novo, aplicavel a creditos cujo consumo se iniciou a partir de 15/02/2025, exige detalhamento por componente.
+  - Componentes podem ter atualizacao pela SELIC, por outro indice ou sem atualizacao.
+  - Pagamentos e parcelamentos usam, quando SELIC, mes seguinte a data de arrecadacao; retencao previdenciaria usa segundo mes seguinte a competencia; retencao nao previdenciaria usa mes seguinte ao mes da retencao; demais parcelas dependem de mes inicial conforme decisao judicial ou IN RFB n. 1.717/2017.
+  - O consumo e calculado por componente e o PER/DCOMP Web ordena componentes do mais antigo para o mais recente.
+- Evidencia tecnica:
+  - `src/services/CalculoService.ts`, linhas 162 a 196: DCOMP hipotetica e DCOMP editada usam fator historico/aproximado sem componente judicial.
+  - Modelo atual `DCOMP` nao possui componentes de credito judicial, forma de atualizacao ou indice manual.
+- Risco:
+  - Aplicar uma SELIC unica por `tipoCredito` pode produzir resultado tributario incorreto em credito judicial.
+- Diretriz:
+  - Tratar credito judicial como regra propria por componente.
+  - Se o relatorio e-CAC nao trouxer componentes, marcar calculo normativo como dependente de dado complementar.
+  - Nao implementar bloqueio ou calculo judicial automatico sem validacao do usuario e caso real.
 
 ## Fluxo de Trabalho da Auditoria
 
