@@ -335,12 +335,54 @@ Excel futuro deve ter, no minimo:
 
 ## Ordem de Implementacao Recomendada
 
+### Pre-condicao tecnica
+
+O `package.json` atual possui scripts de `dev`, `build`, `lint` e `preview`, mas nao possui runner nem script de testes automatizados. Portanto, a primeira autorizacao de implementacao deve incluir a criacao da infraestrutura minima de testes antes de qualquer alteracao comportamental.
+
+Recomendacao pratica:
+
+- adicionar runner de testes compativel com Vite/TypeScript, preferencialmente Vitest;
+- criar script `test`;
+- manter a primeira leva de testes em servicos puros, sem renderizar UI;
+- nao integrar os novos servicos ao fluxo ativo ate os contratos normativos estarem verdes.
+
 ### Fase 1 - Contratos e testes sem alterar comportamento
 
 - Criar tipos/fixtures de teste.
 - Automatizar FX-SEL-001 a FX-SEL-008, CT-RET-001 a CT-RET-004, CT-CAS-001 a CT-CAS-005 e CT-ORI-001.
 - Criar helpers puros de normalizacao.
 - Nenhuma mudanca visual obrigatoria.
+- Nao alterar `CalculoService.ts`, `ExcelParser.ts`, `store.ts`, componentes de UI ou geracao de PDF nesta fase, salvo ajuste estritamente necessario para expor tipos sem mudar comportamento.
+
+Arquivos propostos para a Fase 1, sujeitos a autorizacao:
+
+| Arquivo/pasta | Finalidade | Observacao de seguranca |
+| --- | --- | --- |
+| `src/services/normativo/types.ts` | Tipos comuns: `FonteNormativa`, `OrigemValor`, `StatusCalculo`, `ResultadoAuditavel`, metadados de importacao/simulacao. | Apenas contratos; sem execucao no fluxo ativo. |
+| `src/services/normativo/fixturesSelic.ts` | Fixtures FX-SEL-001 a FX-SEL-008 com taxa injetada quando o objetivo for testar formula. | Nao usar tabela Sicalc por inferencia silenciosa. |
+| `src/services/normativo/dateRules.ts` | Helpers puros para mes normativo, mes subsequente, segundo mes subsequente, mes anterior e marcacao de dados ausentes. | Art. 157 e 361 dia devem permanecer testados; feriados podem iniciar como calendario parametrizado. |
+| `src/services/normativo/creditRules.ts` | Normalizacao consultiva dos tipos de credito priorizados. | Sem bloqueio duro de credito/debito. |
+| `src/services/normativo/statusRules.ts` | Normalizacao consultiva de status e tipo de documento. | Separar vigencia, editabilidade, cancelabilidade e vedacao. |
+| `src/services/normativo/selicMath.ts` | Formula pura: credito atualizado, credito original utilizado e saldo original calculado com taxa recebida. | Nao buscar taxa; apenas calcular com entrada auditavel. |
+| `src/services/normativo/__tests__/*.test.ts` | Testes das fixtures e invariantes. | Nenhum teste deve depender de mutacao de `...Original`. |
+
+Entregaveis minimos da Fase 1:
+
+- infraestrutura de teste funcionando;
+- tipos normativos compilando;
+- testes de formula SELIC com taxa injetada;
+- testes de marcos de data por tipo de credito;
+- testes de `dados_insuficientes`;
+- testes de normalizacao de status reais da planilha;
+- teste de invariancia de `...Original` em objetos simulados.
+
+Nao entregaveis da Fase 1:
+
+- recalculo ativo de cascata;
+- alteracao de PDF/UI;
+- alteracao do parser real;
+- bloqueio automatico de compensacao;
+- classificacao tributaria conclusiva fora dos casos especificados.
 
 ### Fase 2 - Importacao e classificadores consultivos
 
@@ -372,6 +414,7 @@ Excel futuro deve ter, no minimo:
 
 Antes de aceitar implementacao:
 
+- `npm run test`, apos criacao do script de testes;
 - `npm run lint`;
 - `npm run build`;
 - testes automatizados das fixtures normativas;
@@ -397,4 +440,75 @@ Antes de aceitar implementacao:
 
 - Status: Solucao proposta.
 - Implementacao: nao autorizada neste ciclo.
-- Proximo passo apos autorizacao: Fase 1, com testes e contratos puros antes de alterar calculo.
+- Proximo passo apos autorizacao: Fase 1, com infraestrutura de testes, contratos puros e fixtures normativas antes de alterar calculo.
+
+## Pedido de Autorizacao Recomendado
+
+Para avancar com eficiencia e baixo risco, a autorizacao tecnica deve ser limitada a:
+
+1. criar infraestrutura de testes;
+2. criar apenas arquivos novos em `src/services/normativo/`;
+3. criar testes automatizados para os casos ja documentados em AUD-09;
+4. nao conectar os novos servicos ao fluxo ativo;
+5. nao alterar campos `...Original`, parser, store, UI, PDF ou regra de cascata ativa.
+
+Texto sugerido de autorizacao:
+
+> Autorizar Fase 1 da implementacao normativa: criar runner de testes, contratos e servicos puros em `src/services/normativo/`, com fixtures automatizadas de AUD-09, sem integrar ao fluxo ativo e sem alterar `...Original`.
+
+## Questoes Abertas Antes da Implementacao
+
+### Bloqueantes para iniciar Fase 1
+
+Estas questoes precisam de confirmacao do usuario antes de qualquer alteracao tecnica, ainda que a Fase 1 nao conecte os servicos ao fluxo ativo:
+
+1. Autorizacao expressa da Fase 1.
+   - Escopo recomendado: criar runner de testes, contratos e servicos puros em `src/services/normativo/`, sem integracao ao fluxo ativo.
+   - Sem esta autorizacao, a auditoria permanece apenas documental.
+
+2. Runner de testes.
+   - Recomendacao tecnica: Vitest, por aderencia a Vite/TypeScript.
+   - Impacto: altera `package.json`/lockfile e cria script `npm run test`.
+
+### Bloqueantes para Fase 3 ou para resultado `normativo`
+
+Estas questoes nao impedem contratos e testes puros, mas impedem que o calculo seja classificado como `normativo` em producao:
+
+1. Fonte operacional da taxa SELIC.
+   - A tabela local `Selic_Acumulada_ate_06.2026.pdf` foi identificada como tabela Sicalc de acrescimos legais.
+   - Deve ser confirmado se a engine usara tabela propria de taxa mensal SELIC, tabela acumulada validada, ou calculo por subtracao de acumuladas como hipotese tecnica testada.
+
+2. Contagem do 361 dia do PER original para art. 152.
+   - A auditoria registrou o marco normativo, mas a contagem civil exata deve ser validada antes de automacao definitiva.
+   - A decisao deve definir se o 361 dia e tratado por contagem calendario simples e como lidar com feriado/dia nao util no termo inicial.
+
+3. Calendario de dia util para art. 157.
+   - Deve ser decidido se a primeira versao considera apenas sabado/domingo ou tambem feriados nacionais/bancarios/RFB.
+   - Se feriados forem considerados, e preciso definir a fonte da tabela de feriados.
+
+4. DCOMP hipotetica.
+   - Confirmar se a data de transmissao hipotetica deve ser sempre informada pelo usuario ou se pode haver default do sistema marcado como `default_sistema`.
+   - Sem data auditavel, a simulacao deve permanecer `dados_insuficientes` ou `estimativa_historica`.
+
+5. Credito judicial sem componentes no e-CAC.
+   - A regra normativa exige componente, forma de atualizacao, valor original/atualizado e ordem de consumo.
+   - Confirmar se a aplicacao deve apenas retornar `dados_insuficientes` ou se tambem aceitara componentes informados manualmente pelo usuario.
+
+6. Ressarcimento de PIS/Cofins sem PER previo.
+   - A auditoria registrou que o fluxo sem PER previo nao deve receber automaticamente a regra do art. 152 de DCOMP posterior a PER.
+   - Confirmar o tratamento esperado no app: fora de escopo, `dados_insuficientes`, ou fluxo proprio a ser auditado em nova rodada.
+
+7. Multa e juros de debitos.
+   - Confirmar se a aplicacao deve manter recalculo proporcional apenas como estimativa declarada ou se havera suporte a validacao externa/Sicalc.
+   - Enquanto nao houver motor ou conferencia Sicalc, o resultado deve ser rotulado como estimativa/metodo informado, nao como valor correto normativo.
+
+8. Vedacoes e bloqueios duros.
+   - A auditoria recomenda catalogos consultivos primeiro.
+   - Confirmar quando, e para quais regras, a aplicacao deve bloquear operacoes em vez de apenas alertar com fonte normativa.
+
+### Pode ser decidido depois da Fase 1
+
+- Layout final dos alertas em UI/PDF.
+- Exportacao Excel completa.
+- Estrategia de persistencia dos metadados de auditoria em snapshots salvos.
+- Tratamento de tipos de credito fora dos seis tipos reais encontrados na planilha inicial.
