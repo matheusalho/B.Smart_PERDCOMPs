@@ -210,3 +210,59 @@ Para multas por atraso e lancamentos de oficio:
 4. Separar no modelo os conceitos de valor informado, valor compensado, saldo a pagar/devedor e valores simulados.
 5. Registrar no PDF/Excel a metodologia quando multa/juros forem estimados ou alterados pelo usuario.
 6. Preservar `...Original` como base importada e auditavel.
+
+## Rodada de Fechamento Transversal - 2026-06-07
+
+Esta rodada conecta a base geral aos objetos especificos ja auditados.
+
+### Mapa de regra geral para camada tecnica
+
+| Regra transversal | Camada tecnica recomendada | Objetos/casos conectados |
+| --- | --- | --- |
+| Meio cabivel por tipo de credito | `CreditoRulesService` | AUD-02, AUD-11, CT-MEI-001, CT-MEI-002 |
+| Creditos e debitos vedados em DCOMP | `VedacaoCompensacaoService` | AUD-02, AUD-06, AUD-11, CT-VED-001 a CT-VED-003 |
+| Classificacao previdenciario/nao previdenciario e anterior/posterior a DCTFWeb | `VedacaoCompensacaoService` + classificador de debito/credito | CT-DCTF-001 |
+| Pedido de cancelamento irreversivel e restricoes por analise/intimacao | `StatusRulesService` | AUD-06, CT-RET-001 a CT-RET-004, CT-CAN-001 |
+| Tres fluxos de debitos: cobranca, DCTFWeb e informado manualmente | Modelo de debitos e metadados de origem | AUD-07, AUD-08, CT-DEB-001, CT-DEB-002 |
+| Multa/juros por vencimento x transmissao original e conferencia Sicalc | Auditoria de edicao de debitos | AUD-07, AUD-08, CT-DEB-001, CT-DEB-002 |
+| Valores informados x compensados x saldo devedor/saldo a pagar | Modelo de debito mais rico | AUD-07, AUD-08, AUD-11 |
+| Preservacao de base importada | `origemValor` e invariantes `...Original` | AUD-05, CT-ORI-001 a CT-ORI-003 |
+
+### Politica de implementacao derivada
+
+- Catalogos consultivos primeiro; bloqueios duros somente apos validacao com caso real e autorizacao.
+- Alertas normativos devem apontar fonte e campo que disparou a regra.
+- A classificacao de meio/vedacao nao deve se misturar com a classificacao de vigencia processual.
+- Debito vedado, credito vedado e documento bloqueado sao causas diferentes e devem aparecer separadamente em UI/PDF/Excel.
+- A base geral nao substitui os manuais especificos por tipo de credito para SELIC; ela define camadas transversais.
+
+### Achado transversal de fechamento
+
+#### ACH-025 - Regras gerais precisam ser aplicadas como catalogos consultivos coordenados
+
+- Objeto relacionado: AUD-02, AUD-06, AUD-07, AUD-08, AUD-10, AUD-11.
+- Criticidade: Alta.
+- Evidencia normativa:
+  - `meios-para-solicitar-ou-compensar-cada-tipo-de-credito.pdf`.
+  - `creditos-e-debitos-que-nao-podem-ser-informados-em-declaracao-de-compensacao.pdf`.
+  - `orientacoes-iniciais-portal-e-cac-e-per_dcomp_web.pdf`.
+  - `per_dcomp-web_-informar-debitos-para-compensacao.pdf`.
+- Descricao:
+  - As regras gerais nao formam uma regra unica; elas compoem catalogos independentes de meio cabivel, vedacao, status/cancelabilidade e debitos.
+- Risco:
+  - Implementar um unico booleano como `podeCompensar` ou `bloqueado` pode esconder a causa real: meio incorreto, credito vedado, debito vedado, status processual bloqueado ou dado insuficiente.
+- Diretriz:
+  - Retornar resultados consultivos separados e explicaveis:
+    - `meioCabivel`;
+    - `vedacaoCredito`;
+    - `vedacaoDebito`;
+    - `statusProcessual`;
+    - `qualidadeImportacao`;
+    - `statusCalculoSelic`.
+
+## Criterios de Aceite Transversais
+
+- Todo alerta geral aponta fonte normativa.
+- O app consegue mostrar simultaneamente: documento vigente/bloqueado, credito admitido/vedado, debito admitido/vedado e calculo normativo/estimado.
+- Nenhum catalogo geral altera valores importados.
+- Casos CT-MEI, CT-VED, CT-DCTF, CT-DEB, CT-RET e CT-REL possuem cobertura antes de bloqueios duros.
