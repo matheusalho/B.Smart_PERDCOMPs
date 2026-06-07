@@ -34,6 +34,7 @@ Fontes tecnicas lidas:
 - `src/services/CalculoService.ts`
 - `src/store.ts`
 - Planilha real `Sheets/relatorio.xlsx`, com cabecalhos extraidos via biblioteca `xlsx`.
+- Execucao local de `parseExcelFile` sobre `Sheets/relatorio.xlsx`.
 
 ### Abas e colunas relevantes encontradas em `Sheets/relatorio.xlsx`
 
@@ -109,6 +110,49 @@ O parser mapeia atualmente:
 | Retificador/cancelador | `Retificado ou Cancelado Por`, `Numero Retificador` | `numeroRetificador` | Mapeado |
 | Debitos: PA, vencimento e valores | `Periodo de Apuracao do Debito`, `Data de Vencimento Tributo Quota`, `Valor Principal`, `Valor Multa`, `Valor Juros`, `Valor Total` | `DebitoOficial` e campos `...Original` | Mapeado |
 
+### Resultado observado com a planilha real
+
+Execucao local de `parseExcelFile` sobre `Sheets/relatorio.xlsx`:
+
+| Indicador | Resultado |
+| --- | ---: |
+| Linhas uteis observadas na aba `Processamento PERDCOMP` por leitura matricial | 1472 |
+| DCOMPs carregadas pelo parser | 1443 |
+| Cadeias carregadas pelo parser | 565 |
+| Debitos carregados pelo parser | 4641 |
+| Linhas com numero de PER/DCOMP presentes na aba, mas nao carregadas | 29 |
+
+As 29 linhas nao carregadas possuem `IDs da Cadeia Relacional` vazio. Exemplos:
+
+| PER/DCOMP | Tipo de credito | Situacao | Observacao |
+| --- | --- | --- | --- |
+| `20412.42534.150526.1.3.24-5753` | Pagamento Indevido ou a Maior eSocial | Em analise | Sem `IDs da Cadeia Relacional`. |
+| `39762.69755.150526.1.3.24-8761` | Pagamento Indevido ou a Maior eSocial | Em analise | Sem `IDs da Cadeia Relacional`. |
+| `15110.01245.091116.1.3.02-9855` | Saldo Negativo de IRPJ | Homologado | Sem `IDs da Cadeia Relacional`. |
+
+Distribuicao das 29 linhas nao carregadas por tipo/situacao:
+
+| Tipo/situacao | Linhas |
+| --- | ---: |
+| Pagamento Indevido ou a Maior eSocial - Em analise | 7 |
+| Credito Oriundo de Acao Judicial - Homologado | 4 |
+| Saldo Negativo de CSLL - Homologado | 3 |
+| Saldo Negativo de IRPJ - Homologado | 2 |
+| Saldo Negativo de IRPJ - Despacho Decisorio Emitido | 2 |
+| Credito Oriundo de Acao Judicial - Em analise | 2 |
+| Saldo Negativo de IRPJ - Analise concluida | 2 |
+| Pagamento Indevido ou a Maior - Homologado | 2 |
+| Saldo Negativo de CSLL - Despacho Decisorio Emitido | 2 |
+| Pagamento Indevido ou a Maior - Em discussao administrativa - CARF | 1 |
+| Pagamento Indevido ou a Maior - Retificado | 1 |
+| Saldo Negativo de IRPJ - Retificado | 1 |
+
+Decisao de auditoria:
+
+- Para cascata relacional, documento sem `IDs da Cadeia Relacional` pode nao ser processavel na mesma logica.
+- Para auditoria/importacao, a linha nao deve desaparecer silenciosamente.
+- O importador futuro deve registrar documentos orfaos/sem cadeia em relatorio de qualidade, com status `sem_cadeia_relacional`, e permitir que o usuario saiba que nao entraram no motor de cascata.
+
 ### Dados necessarios para SELIC normativa
 
 | Regra SELIC | Dados necessarios | Disponibilidade na planilha | Status no parser/modelo | Decisao de auditoria |
@@ -147,6 +191,35 @@ O parser mapeia atualmente:
 - Diretriz:
   - Resolver `dataProtocoloPerOriginal` apenas quando o PER original estiver presente e identificado; caso contrario, marcar `dadoComplementarExigido`.
 
+#### ACH-023 - Linhas sem cadeia relacional sao descartadas sem relatorio de qualidade
+
+- Objeto relacionado: AUD-03, AUD-04, AUD-08.
+- Criticidade: Alta.
+- Evidencia tecnica:
+  - `ExcelParser.ts`, linhas 151 a 153: se `IDs da Cadeia Relacional` estiver vazio, a linha retorna sem criar DCOMP.
+  - Execucao sobre `Sheets/relatorio.xlsx`: 29 linhas com numero de PER/DCOMP nao foram carregadas por ausencia de cadeia.
+- Risco:
+  - O usuario pode acreditar que todos os documentos do e-CAC foram considerados, quando documentos sem cadeia ficaram fora da cascata.
+  - Relatorio e KPIs podem omitir documentos relevantes para contexto tributario.
+- Diretriz:
+  - Criar `ImportQualityReport` com contagem de linhas lidas, carregadas, ignoradas e motivo.
+  - Preservar lista de documentos sem cadeia como evidencia, mesmo que fora do motor de cascata.
+
+#### ACH-024 - Datas/valores ausentes usam fallback silencioso
+
+- Objeto relacionado: AUD-01, AUD-03, AUD-05.
+- Criticidade: Alta.
+- Evidencia tecnica:
+  - `ExcelParser.ts`, linhas 20 a 47.
+- Descricao:
+  - `toNumberValue` retorna `0` para valor ausente.
+  - `parseExcelDate` retorna `new Date()` para data ausente ou formato nao tratado.
+- Risco:
+  - Dado ausente pode virar zero ou data atual, contaminando regra de SELIC, status de importacao ou relatorio.
+- Diretriz:
+  - Para campos normativos, distinguir `ausente`, `zero_importado` e `data_invalida`.
+  - O parser deve registrar erro/alerta de qualidade, nao preencher data normativa com data atual.
+
 ## Fragilidades Possiveis
 
 - Mudanca de nome de coluna pela RFB.
@@ -173,9 +246,64 @@ O parser mapeia atualmente:
 - Transformar aliases de coluna em tabela central.
 - Adicionar campos opcionais, preservados e rastreaveis, para `dataArrecadacaoCredito`, `competenciaCredito`, `numeroPagamento`, `processoJudicial`, `processoHabilitacao`, `processoAdministrativo`, `dataProtocoloPerOriginal`, `dadosSelicAusentes`.
 
+## Contrato de Importacao Proposto
+
+### `ImportQualityReport`
+
+```ts
+type ImportQualityReport = {
+  linhasProcessamentoLidas: number;
+  dcompsCarregadas: number;
+  debitosCarregados: number;
+  cadeiasCarregadas: number;
+  documentosIgnorados: Array<{
+    numeroPerdcomp?: string;
+    motivo: 'sem_cadeia_relacional' | 'sem_numero_perdcomp' | 'linha_invalida';
+    tipoCredito?: string;
+    situacao?: string;
+  }>;
+  camposAusentesPorDocumento: Array<{
+    numeroPerdcomp: string;
+    campos: string[];
+  }>;
+  alertas: string[];
+};
+```
+
+### Dados importados opcionais para `DCOMP`
+
+```ts
+type MetadadosCreditoImportado = {
+  dataArrecadacaoCredito?: Date;
+  competenciaCredito?: string;
+  tipoCompetenciaCredito?: string;
+  numeroPagamento?: string;
+  grupoTributo?: string;
+  codigoReceitaCredito?: string;
+  periodoApuracaoDarf?: string;
+  processoJudicial?: string;
+  processoHabilitacao?: string;
+  origemDiscussao?: string;
+  processoAdministrativo?: string;
+  periodoApuracaoCreditoInicio?: Date;
+  periodoApuracaoCreditoFim?: Date;
+  totalCreditoOriginalUtilizadoAbaDebitos?: number;
+};
+```
+
+Regras:
+
+- Campo ausente deve permanecer ausente.
+- Campo monetario ausente nao deve ser confundido com zero importado.
+- Documento sem cadeia deve ser relatado, nao necessariamente processado em cascata.
+- Qualquer dado complementar informado pelo usuario deve ter origem separada de dado importado.
+
 ## Criterios de Aceite
 
 - Matriz de colunas obrigatorias e opcionais.
 - Reproducao do parse com a planilha real.
 - Casos de teste para datas, valores e retificacoes.
 - Para cada CT-SEL minimo, saber se os dados necessarios vieram do e-CAC, foram informados pelo usuario ou estao indisponiveis.
+- Relatorio de qualidade da importacao mostra documentos sem cadeia e campos ausentes.
+- Datas ausentes/invalidas nao viram data atual em regra normativa.
+- Valores ausentes nao viram zero normativo sem alerta.

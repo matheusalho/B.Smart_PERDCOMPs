@@ -39,7 +39,7 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | AUD-01 | SELIC e atualizacao de creditos | `01-SELICAtualizacaoCreditos.md` | Critica | Validado normativamente | Validar marco inicial, marco final, acrescimo de 1%, tipo de credito, componentes de credito judicial e uso da tabela SELIC. | Calculo simplificado pode distorcer consumo de credito em simulacoes; regras variam por tipo de credito e, no credito judicial, por componente/forma de atualizacao. | `CalculoService.ts` ainda contem funcao simplificada `calcularSelicAcumulada`; ela parece nao ser chamada no fluxo ativo. O fluxo ativo usa fator empirico para edicoes e aproximacao para DCOMP hipotetica. Manuais de Saldo Negativo IRPJ/CSLL, Pagamento Indevido PJ, Contribuicao Previdenciaria Indevida PJ e Retencao Previdenciaria PJ confirmam marcos iniciais distintos. Manual de credito judicial confirma calculo por componente. Salario-Familia/Maternidade PJ confirma DCOMP vedada e atualizacao apenas no reembolso pago. Ressarcimento de PIS/Cofins nao cumulativos e Ressarcimento de IPI seguem o art. 152 da IN RFB n. 2.055/2021 para SELIC apos 360 dias do PER original, com escopo de IPI limitado a valoracao do credito. Matriz minima implementavel de SELIC criada no arquivo do AUD-01. | Criar engine normativa de SELIC por tipo de credito/componente, com input/result rastreavel, mantendo valores importados e `...Original` intactos. |
 | AUD-02 | Tipos de credito, elegibilidade e restricoes | `02-TiposCreditoElegibilidadeRestricoes.md` | Critica | Solucao proposta | Mapear quais creditos podem ser compensados, ressarcidos ou restituidos e quais debitos nao podem ser informados. | Permitir simulacao de combinacoes vedadas ou incompatibilidade entre credito e debito. | Matriz inicial criada para os seis tipos reais da planilha (`Pagamento Indevido ou a Maior`, `Pagamento Indevido ou a Maior eSocial`, `Contribuicao Previdenciaria Indevida ou a Maior`, `Saldo Negativo de IRPJ`, `Saldo Negativo de CSLL`, `Credito Oriundo de Acao Judicial`) e para vedações prioritarias. Ainda nao ha catalogo normativo no codigo. | Construir `CreditoRulesService`/catalogo consultivo de tipos e `VedacaoCompensacaoService`, inicialmente com alertas e rastreabilidade, sem bloqueio automatico. |
-| AUD-03 | Importacao do relatorio e-CAC e linhagem | `03-ImportacaoRelatorioECACELinhagem.md` | Alta | Achado registrado | Auditar parser, normalizacao, datas, agrupamento por cadeia, retificacoes e cancelamentos. | Mudanca de coluna da RFB pode quebrar importacao; erro de linhagem altera cascata inteira; marcos de SELIC podem existir na planilha mas nao no modelo. | Planilha real contem `Data de Arrecadacao`, `Competencia do Credito`, processos e dados de PER/pagamento ainda nao mapeados. Parser preserva valores principais, mas nao carrega todos os marcos necessarios para SELIC normativa. | Ampliar contrato de importacao e modelo com metadados opcionais rastreaveis antes de implementar `SelicService`. |
+| AUD-03 | Importacao do relatorio e-CAC e linhagem | `03-ImportacaoRelatorioECACELinhagem.md` | Alta | Solucao proposta | Auditar parser, normalizacao, datas, agrupamento por cadeia, retificacoes e cancelamentos. | Mudanca de coluna da RFB pode quebrar importacao; erro de linhagem altera cascata inteira; marcos de SELIC podem existir na planilha mas nao no modelo. | Planilha real contem `Data de Arrecadacao`, `Competencia do Credito`, processos e dados de PER/pagamento ainda nao mapeados. Execucao real do parser carregou 1443 DCOMPs de 1472 linhas uteis; 29 documentos sem `IDs da Cadeia Relacional` foram descartados silenciosamente. Datas/valores ausentes possuem fallback silencioso. | Ampliar contrato de importacao com metadados opcionais e `ImportQualityReport`, reportando documentos sem cadeia, campos ausentes, data invalida e zero importado antes de implementar `SelicService`. |
 | AUD-04 | Consumo de credito original e cascata | `04-ConsumoCreditoOriginalECascata.md` | Critica | Solucao proposta | Validar como o saldo original e consumido, propagado e comparado com o saldo informado pela RFB. | Erro de abatimento pode indicar retificacao indevida ou esconder insuficiencia de credito. | Rodada de 2026-06-07 confirmou que o motor preserva campos originais principais, mas usa heuristica textual para multiplos detalhamentos, fallback silencioso de pool, replicacao de valor mutavel para UI e status `RETIFICAR` derivado de divergencia matematica. | Criar `CascataRule` por tipo de credito, registrar metodo/origem/confianca do saldo calculado e separar status tecnico de acao sugerida. |
 | AUD-05 | Valores originais e rastreabilidade | `05-ValoresOriginaisRastreabilidade.md` | Critica | Solucao proposta | Garantir preservacao de `...Original`, separando valores importados, calculados e simulados. | Contaminar base original compromete prova, auditoria e relatorio. | Matriz de origem/mutabilidade criada para campos atuais e futuros; taxonomia consolidada distingue `importado_rfb`, `calculado_motor`, `simulado_usuario`, `replicado_credito_raiz`, `fallback_operacional` e `exibido_formatado`. ACH-022 registra que `...Original` de DCOMP hipotetica e baseline simulado, nao RFB. | Criar metadados de origem por documento/valor e tipo dedicado para metadados de importacao, resultado SELIC e auditoria de simulacao, mantendo campos `...Original` intactos. |
 | AUD-06 | Retificacoes, vigencia e bloqueios | `06-RetificacoesVigenciaBloqueios.md` | Alta | Solucao proposta | Validar status da RFB, documentos vigentes, bloqueados, retificados, cancelados e impactos em cascata. | Classificacao incorreta pode permitir edicao indevida, ignorar documento relevante ou consumir saldo de documento nao vigente. | Manual confirma cancelamento irreversivel e restricoes a documento analisado/intimado. Planilha real tem 10 situacoes e 3 tipos de documento; helper atual diverge em 5 linhas por falta de normalizacao (`Pedido de cancelamento deferido | Pedido Cancelamento` e `Nao admitido`). | Criar classificador unico `StatusRulesService`, com normalizacao, motivo, fonte e separacao entre vigencia, editabilidade, cancelabilidade e vedacao normativa. |
@@ -365,6 +365,29 @@ Esta auditoria deve validar se a aplicacao reproduz corretamente, por tipo de cr
   - A mesma nomenclatura `...Original` pode significar base RFB em DCOMP real e baseline simulado em DCOMP hipotetica.
 - Diretriz:
   - Adicionar `origemValor`/`origemDocumento` antes de qualquer ajuste de relatorio ou calculo normativo.
+
+### ACH-023 - Linhas sem cadeia relacional sao descartadas sem relatorio de qualidade
+
+- Objeto relacionado: AUD-03, AUD-04, AUD-08
+- Criticidade: Alta
+- Evidencia tecnica:
+  - `src/services/ExcelParser.ts`, linhas 151 a 153.
+  - `Sheets/relatorio.xlsx`: 29 linhas com numero de PER/DCOMP nao carregadas por ausencia de `IDs da Cadeia Relacional`.
+- Risco:
+  - Documentos podem ficar fora da cascata e do relatorio sem que o usuario perceba.
+- Diretriz:
+  - Criar `ImportQualityReport` com documentos ignorados e motivo.
+
+### ACH-024 - Datas/valores ausentes usam fallback silencioso
+
+- Objeto relacionado: AUD-01, AUD-03, AUD-05
+- Criticidade: Alta
+- Evidencia tecnica:
+  - `src/services/ExcelParser.ts`, linhas 20 a 47.
+- Risco:
+  - Data ausente pode virar data atual e valor ausente pode virar zero, contaminando regra normativa futura.
+- Diretriz:
+  - Distinguir `ausente`, `zero_importado` e `data_invalida`; nao usar fallback silencioso em campos normativos.
 
 ## Fluxo de Trabalho da Auditoria
 
