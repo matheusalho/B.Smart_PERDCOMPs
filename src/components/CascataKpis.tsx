@@ -12,6 +12,15 @@ interface CascataKpisProps {
   docsARetificar: number;
 }
 
+type KpiTone = 'default' | 'primary' | 'success' | 'warning';
+
+interface ChainKpi {
+  label: string;
+  value: string;
+  tone: KpiTone;
+  title?: string;
+}
+
 export const CascataKpis: React.FC<CascataKpisProps> = ({
   totalCreditoAtual,
   totalCreditoOriginal,
@@ -22,56 +31,58 @@ export const CascataKpis: React.FC<CascataKpisProps> = ({
   docsRetificadosUsuario,
   docsARetificar
 }) => {
+  const kpis: ChainKpi[] = [
+    {
+      label: 'Saldo Inicial (Raiz)',
+      value: formatCurrency(totalCreditoAtual),
+      tone: totalCreditoAtual !== totalCreditoOriginal ? 'primary' : 'default',
+    },
+    {
+      label: 'Créd. Original Usado',
+      title: 'Total do Crédito Original Utilizado na Cadeia de PER/DCOMP Selecionada',
+      value: formatCurrency(totalCreditoUtilizado),
+      tone: 'primary',
+    },
+    {
+      label: 'Saldo Original Restante',
+      title: 'Reflete o novo Saldo de Crédito Original após as edições',
+      value: formatCurrency(saldoFinal),
+      tone: 'primary',
+    },
+    {
+      label: 'Valor Total dos Débitos Reduzidos',
+      value: formatCurrencyMagnitude(debitosReduzidos),
+      tone: 'default',
+    },
+    {
+      label: 'Lastro Original Disponibilizado',
+      value: formatCurrencyMagnitude(variacaoDebitos),
+      tone: 'default',
+    },
+    {
+      label: 'Retificadas pelo Usuário',
+      value: `${docsRetificadosUsuario} Docs`,
+      tone: docsRetificadosUsuario > 0 ? 'success' : 'default',
+    },
+    {
+      label: 'A Retificar (Colaterais)',
+      value: `${docsARetificar} Docs`,
+      tone: docsARetificar > 0 ? 'warning' : 'default',
+    },
+  ];
+
   return (
-    <div className="kpi-panel tour-cadeia-kpi" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-      <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase">Saldo Inicial (Raiz)</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: totalCreditoAtual !== totalCreditoOriginal ? 'var(--color-primary)' : 'inherit' }}>
-          {formatCurrency(totalCreditoAtual)}
+    <div className="kpi-panel cascade-kpi-panel tour-cadeia-kpi">
+      {kpis.map(kpi => (
+        <div className="card-glass cascade-kpi-card" key={kpi.label}>
+          <div className="label-uppercase cascade-kpi-label" title={kpi.title}>
+            {kpi.label}
+          </div>
+          <div className={`cascade-kpi-value cascade-kpi-value--${kpi.tone}`} title={kpi.value}>
+            {kpi.value}
+          </div>
         </div>
-      </div>
-
-      <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase" title="Total do Crédito Original Utilizado na Cadeia de PER/DCOMP Selecionada">Créd. Original Usado</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-primary)' }}>
-          {formatCurrency(totalCreditoUtilizado)}
-        </div>
-      </div>
-      
-      <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase" title="Reflete o novo Saldo de Crédito Original após as edições">Saldo Original Restante</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-primary)' }}>
-          {formatCurrency(saldoFinal)}
-        </div>
-      </div>
-
-      <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase">Valor Total dos Débitos Reduzidos</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-          {formatCurrencyMagnitude(debitosReduzidos)}
-        </div>
-      </div>
-
-      <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase">Lastro Original Disponibilizado</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-main)' }}>
-          {formatCurrencyMagnitude(variacaoDebitos)}
-        </div>
-      </div>
-
-      <div className="card-glass" style={{ flex: 1, minWidth: '180px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase">Retificadas pelo Usuário</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: docsRetificadosUsuario > 0 ? 'var(--color-success)' : 'var(--color-text-main)' }}>
-          {docsRetificadosUsuario} Docs
-        </div>
-      </div>
-
-      <div className="card-glass" style={{ flex: 1, minWidth: '150px', padding: '1.25rem 1.5rem' }}>
-        <div className="label-uppercase">A Retificar (Colaterais)</div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 600, color: docsARetificar > 0 ? 'var(--color-warning)' : 'var(--color-text-main)' }}>
-          {docsARetificar} Docs
-        </div>
-      </div>
+      ))}
     </div>
   );
 };

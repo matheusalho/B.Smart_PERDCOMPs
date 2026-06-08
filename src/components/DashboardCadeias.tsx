@@ -41,6 +41,15 @@ export const DashboardCadeias: React.FC = () => {
 
   const listaCadeias = Object.values(cadeias) as CadeiaRelacional[];
   const cadeiaSelecionada = cadeiaSelecionadaId ? cadeias[cadeiaSelecionadaId] : null;
+  const tiposCreditoDisponiveis = useMemo(() => {
+    return Array.from(
+      new Set(
+        listaCadeias
+          .map(cadeia => cadeia.tipoCredito.trim())
+          .filter(tipoCredito => tipoCredito.length > 0)
+      )
+    ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [listaCadeias]);
 
   const kpisGlobais = useMemo(() => {
     let cadeiasEditadas = 0;
@@ -111,7 +120,7 @@ export const DashboardCadeias: React.FC = () => {
 
       // Filtro Tipo de Crédito
       if (filtroTipoCredito) {
-        if (!cadeia.tipoCredito.toLowerCase().includes(filtroTipoCredito.toLowerCase())) return false;
+        if (cadeia.tipoCredito !== filtroTipoCredito) return false;
       }
 
       return true;
@@ -278,14 +287,20 @@ export const DashboardCadeias: React.FC = () => {
             </div>
             <div style={{ flex: 1, minWidth: '180px' }}>
               <label className="label-uppercase" style={{ marginBottom: '0.5rem', display: 'block' }}>Tipo de Crédito</label>
-              <input 
-                type="text" 
-                className="input-field" 
+              <select
+                className="input-field"
                 style={{ width: '100%' }}
-                placeholder="Ex: Saldo Negativo"
                 value={filtroTipoCredito}
                 onChange={e => setFiltroTipoCredito(e.target.value)}
-              />
+                aria-label="Filtrar por tipo de crédito"
+              >
+                <option value="">Todos os tipos de crédito</option>
+                {tiposCreditoDisponiveis.map(tipoCredito => (
+                  <option key={tipoCredito} value={tipoCredito}>
+                    {tipoCredito}
+                  </option>
+                ))}
+              </select>
             </div>
             <div style={{ flex: 1, minWidth: '150px' }}>
               <label className="label-uppercase" style={{ marginBottom: '0.5rem', display: 'block' }}>PA do Crédito</label>

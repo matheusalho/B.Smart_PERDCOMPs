@@ -136,6 +136,78 @@ h3 { font-size: 1.5rem; }
   box-shadow: var(--shadow-glow);
 }
 
+.cascade-kpi-panel {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.cascade-kpi-card {
+  min-width: 0;
+  min-height: 96px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cascade-kpi-label {
+  margin-bottom: 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.cascade-kpi-value {
+  color: var(--color-text-main);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cascade-kpi-value--primary {
+  color: var(--color-primary);
+}
+
+.cascade-kpi-value--success {
+  color: var(--color-success);
+}
+
+.cascade-kpi-value--warning {
+  color: var(--color-warning);
+}
+
+@media (max-width: 1440px) {
+  .cascade-kpi-panel {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cascade-kpi-card {
+    min-height: 86px;
+  }
+
+  .cascade-kpi-value {
+    font-size: 1.15rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .cascade-kpi-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .cascade-kpi-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

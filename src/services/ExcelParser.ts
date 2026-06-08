@@ -43,7 +43,17 @@ const parseExcelDate = (excelDate: unknown): Date => {
   if (typeof excelDate === 'number') {
     // 25569 é o offset de dias entre 01/01/1900 (Excel) e 01/01/1970 (UNIX)
     // 86400 * 1000 = ms em um dia
-    return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+    const parsedDate = XLSX.SSF.parse_date_code(excelDate);
+    if (parsedDate) {
+      return new Date(
+        parsedDate.y,
+        parsedDate.m - 1,
+        parsedDate.d,
+        parsedDate.H,
+        parsedDate.M,
+        Math.floor(parsedDate.S)
+      );
+    }
   }
   
   if (typeof excelDate === 'string') {
@@ -53,8 +63,13 @@ const parseExcelDate = (excelDate: unknown): Date => {
      if (parts[0].includes('/')) {
          const dParts = parts[0].split('/');
          if (dParts.length === 3) {
-             return new Date(`${dParts[2]}-${dParts[1]}-${dParts[0]}T00:00:00Z`);
+             const [day, month, year] = dParts.map(Number);
+             return new Date(year, month - 1, day);
          }
+     }
+     if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+       const [year, month, day] = parts[0].split('-').map(Number);
+       return new Date(year, month - 1, day);
      }
      return new Date(excelDate);
   }

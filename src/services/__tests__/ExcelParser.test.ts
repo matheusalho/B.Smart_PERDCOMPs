@@ -51,6 +51,13 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
     expect(dcomp?.valorUtilizadoPerdcompOriginal).toBe(607590.62);
   });
 
+  it('preserva o dia civil das datas de transmissao importadas do Excel', () => {
+    const dcomp = findDcomp(latestResult.cadeias, '06251.86776.210720.1.7.02-1771');
+
+    expect(formatLocalDate(dcomp?.dataTransmissao)).toBe('21/07/2020');
+    expect(formatLocalDate(dcomp?.dataTransmissaoOriginal)).toBe('19/04/2016');
+  });
+
   it('anexa classificacoes consultivas de credito e status sem bloquear a importacao', () => {
     const dcompJudicial = findDcomp(latestResult.cadeias, '32552.06818.210225.1.3.57-2529');
     const dcompHomologada = findDcomp(latestResult.cadeias, '06251.86776.210720.1.7.02-1771');
@@ -96,6 +103,16 @@ function latestSheetFile(): string {
       mtime: statSync(resolve(sheetsDir, file)).mtimeMs,
     }))
     .sort((a, b) => b.mtime - a.mtime)[0].file;
+}
+
+function formatLocalDate(date?: Date): string {
+  if (!date) return '';
+
+  return [
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    date.getFullYear(),
+  ].join('/');
 }
 
 function totalDcomps(
