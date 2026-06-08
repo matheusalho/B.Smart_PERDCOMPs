@@ -15,11 +15,12 @@ const codigosReceitaDict = codigosReceitaData.reduce((acc, curr) => {
 interface ModalEdicaoProps {
   dcomp: DCOMP;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
+export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose, readOnly = false }) => {
   const atualizarDebitos = useStore(state => state.atualizarDebitos);
   const [debitosEdit, setDebitosEdit] = useState<DebitoOficial[]>([...dcomp.debitos]);
   const [buscaReceita, setBuscaReceita] = useState('');
@@ -28,6 +29,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
   const origens = ['Todas', 'eSocial', 'EFD-Reinf CP', 'EFD-Reinf RET', 'Sero', 'MIT'];
 
   const handleEdit = (debId: string, field: keyof DebitoOficial, valStr: string) => {
+    if (readOnly) return;
+
     const val = Number(valStr);
     if (isNaN(val) || val < 0) return; // bloqueio de negativo
 
@@ -51,6 +54,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
   };
 
   const handleRestaurar = (debId: string) => {
+    if (readOnly) return;
+
     setDebitosEdit(prev => prev.map(d => {
       if (d.id !== debId) return d;
       return { 
@@ -87,6 +92,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, debId: string, field: keyof DebitoOficial) => {
+    if (readOnly) return;
+
     const pastedData = e.clipboardData.getData('Text');
     const parsed = parsePasteValue(pastedData);
     if (parsed !== null) {
@@ -96,6 +103,11 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
   };
 
   const handleSave = () => {
+    if (readOnly) {
+      onClose();
+      return;
+    }
+
     let hasChanges = false;
     debitosEdit.forEach(d => {
       const orig = dcomp.debitos.find(x => x.id === d.id);
@@ -132,7 +144,7 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
       <div className="card-glass" style={{ width: '95vw', maxWidth: '1700px', height: '85vh', display: 'flex', flexDirection: 'column', padding: '2rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Edição de Débitos</h2>
+            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{readOnly ? 'Visualização de Débitos' : 'Edição de Débitos'}</h2>
             <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem', marginTop: '0.25rem' }}>DCOMP: {dcomp.id} {dcomp.numeroRetificador ? `| Retificadora: ${dcomp.numeroRetificador}` : ''}</p>
           </div>
           <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: '1.5rem', padding: '0.2rem 0.5rem', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
@@ -143,6 +155,17 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
             status: dcomp.situacao,
             tipoDocumento: dcomp.tipoDocumento || ''
           });
+
+          if (readOnly) {
+            return (
+              <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', color: 'var(--color-warning)', display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                <span style={{ fontSize: '1.25rem' }}>⚠️</span>
+                <span style={{ fontSize: '0.9rem' }}>
+                  <strong>Modo somente leitura:</strong> o status atual (<strong>{dcomp.situacao}</strong>) impede a edição desta PER/DCOMP. Os débitos compensados podem ser consultados, mas não alterados.
+                </span>
+              </div>
+            );
+          }
 
           if (statusClassificado.editabilidadeSimulacao === 'bloqueado') {
             return (
@@ -157,12 +180,14 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
           return null;
         })()}
 
-        <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', color: 'var(--color-primary)', display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-          <span style={{ fontSize: '1.25rem' }}>ℹ️</span>
-          <span style={{ fontSize: '0.9rem' }}>
-            Editando <strong>{dcomp.id}</strong>. Ao alterar o <strong>Valor Principal</strong>, multa e juros serão recalculados proporcionalmente.
-          </span>
-        </div>
+        {!readOnly && (
+          <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', color: 'var(--color-primary)', display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+            <span style={{ fontSize: '1.25rem' }}>ℹ️</span>
+            <span style={{ fontSize: '0.9rem' }}>
+              Editando <strong>{dcomp.id}</strong>. Ao alterar o <strong>Valor Principal</strong>, multa e juros serão recalculados proporcionalmente.
+            </span>
+          </div>
+        )}
 
         {/* Qualidade da Auditoria SELIC Panel */}
         {dcomp.resultadoSelic && (
@@ -313,6 +338,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
                             value={deb.valorPrincipal} 
                             onChange={e => handleEdit(deb.id, 'valorPrincipal', e.target.value)} 
                             onPaste={e => handlePaste(e, deb.id, 'valorPrincipal')}
+                            readOnly={readOnly}
+                            aria-readonly={readOnly}
                             min="0"
                             step="0.01"
                             tabIndex={0}
@@ -330,6 +357,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
                             value={deb.valorMulta} 
                             onChange={e => handleEdit(deb.id, 'valorMulta', e.target.value)} 
                             onPaste={e => handlePaste(e, deb.id, 'valorMulta')}
+                            readOnly={readOnly}
+                            aria-readonly={readOnly}
                             min="0"
                             step="0.01"
                             tabIndex={0}
@@ -347,6 +376,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
                             value={deb.valorJuros} 
                             onChange={e => handleEdit(deb.id, 'valorJuros', e.target.value)} 
                             onPaste={e => handlePaste(e, deb.id, 'valorJuros')}
+                            readOnly={readOnly}
+                            aria-readonly={readOnly}
                             min="0"
                             step="0.01"
                             tabIndex={0}
@@ -359,7 +390,7 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
                       {formatCurrency(deb.valorTotal)}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {isMudado && (
+                      {!readOnly && isMudado && (
                         <button className="btn btn-ghost text-danger" style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }} onClick={() => handleRestaurar(deb.id)}>
                           Restaurar
                         </button>
@@ -373,8 +404,8 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose }) => {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2rem', flexShrink: 0, gap: '1rem' }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSave}>Salvar Alterações</button>
+          <button className="btn btn-ghost" onClick={onClose}>{readOnly ? 'Fechar' : 'Cancelar'}</button>
+          {!readOnly && <button className="btn btn-primary" onClick={handleSave}>Salvar Alterações</button>}
         </div>
       </div>
     </div>,

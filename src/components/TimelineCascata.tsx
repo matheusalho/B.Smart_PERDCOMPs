@@ -11,12 +11,12 @@ import { ModalEdicao } from './ModalEdicao';
 import { ModalHipotetica } from './ModalHipotetica';
 import { CascataKpis } from './CascataKpis';
 import { CascataFilters } from './CascataFilters';
-import { Settings, Pencil, Trash } from 'lucide-react';
+import { Settings, Pencil, Trash, Eye } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
 
 export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia }) => {
   const formatDate = (date: Date) => format(date, 'dd/MM/yyyy', { locale: ptBR });
-  const [dcompEditando, setDcompEditando] = useState<DCOMP | null>(null);
+  const [dcompEditando, setDcompEditando] = useState<{ dcomp: DCOMP; readOnly: boolean } | null>(null);
   const [modalHipoteticaAberta, setModalHipoteticaAberta] = useState(false);
   const [editandoRaiz, setEditandoRaiz] = useState(false);
   const [valorRaizEdit, setValorRaizEdit] = useState('');
@@ -499,16 +499,21 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                             )
                           )}
 
-                          {bloqueado ? (
-                            <span className="text-warning" style={{ fontSize: '0.75rem', textAlign: 'center', fontWeight: 600, padding: '0.25rem' }}>Bloqueado</span>
-                          ) : !vigente ? (
-                            <span className="text-muted" style={{ fontSize: '0.75rem', textAlign: 'center', padding: '0.25rem' }}>Não vigente</span>
+                          {bloqueado || !vigente ? (
+                            <button
+                              className="btn btn-ghost btn-view-debito"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: bloqueado ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
+                              onClick={() => setDcompEditando({ dcomp, readOnly: true })}
+                              title={bloqueado ? 'Visualizar débitos de PER/DCOMP bloqueada' : 'Visualizar débitos de PER/DCOMP não vigente'}
+                            >
+                              <Eye size={14} /> Ver Débitos
+                            </button>
                           ) : (
                             <>
                               <button 
                                 className="btn btn-outline btn-edit-debito" 
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                onClick={() => setDcompEditando(dcomp)}
+                                onClick={() => setDcompEditando({ dcomp, readOnly: false })}
                                 title="Editar Débitos"
                               >
                                 <Pencil size={14} /> Débitos
@@ -555,7 +560,7 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
       </div>
 
       {dcompEditando && (
-        <ModalEdicao dcomp={dcompEditando} onClose={() => setDcompEditando(null)} />
+        <ModalEdicao dcomp={dcompEditando.dcomp} readOnly={dcompEditando.readOnly} onClose={() => setDcompEditando(null)} />
       )}
 
       {modalHipoteticaAberta && (
