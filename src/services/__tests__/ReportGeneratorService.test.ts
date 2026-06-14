@@ -120,6 +120,19 @@ describe('ReportGeneratorService', () => {
     expect(celulasPerDcomp.some((cell) => cell.includes('\nDados Insuf.'))).toBe(false);
   });
 
+  it('evita dividir linhas das tabelas rastreadas entre paginas', async () => {
+    await generatePdfReport([criarSimulacaoComRastreabilidade()], 'light');
+
+    const tabelasRastreadas = mocks.autoTableCalls.filter((call) => {
+      const head = call.head as unknown[][];
+      return head?.some((row) => row.includes('Indicadores')) &&
+        head.some((row) => row.includes('PER/DCOMP'));
+    });
+
+    expect(tabelasRastreadas.length).toBeGreaterThan(0);
+    expect(tabelasRastreadas.every((call) => call.rowPageBreak === 'avoid')).toBe(true);
+  });
+
   it('inclui glossario das badges de rastreabilidade na declaracao de premissas e metodologia', async () => {
     await generatePdfReport([criarSimulacaoComRastreabilidade()], 'light');
 
