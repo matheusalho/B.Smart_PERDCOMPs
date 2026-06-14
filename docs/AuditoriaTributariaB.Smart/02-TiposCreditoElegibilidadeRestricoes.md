@@ -110,7 +110,7 @@ As vedações alcançam DCOMP por qualquer meio. Para o app, a primeira camada d
 - `tipoCredito` e tratado como texto livre no modelo `DCOMP` e em `CadeiaRelacional`.
 - `CalculoService.ts` usa comparacoes textuais para definir `permiteMultiplosDetalhamentos`, atualmente restritas a `pagamento indevido ou a maior esocial` e `contribuicao previdenciaria indevida ou a maior`.
 - Nao existe `CreditoRulesService`, classificador normalizado ou catalogo central de meios/vedacoes.
-- A UI e o PDF ainda nao possuem campo para exibir alerta normativo por tipo de credito/debito.
+- A UI e o PDF possuem alertas consultivos parciais; ainda falta matriz completa por tipo de credito/debito e decisao sobre bloqueios duros.
 
 ### Proposta tecnica sem implementacao
 

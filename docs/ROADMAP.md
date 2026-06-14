@@ -1,31 +1,54 @@
 # ROADMAP.md
 
-## Alta Prioridade (O que Codex deve assumir primeiro)
-1. **Auditoria Tributária Guiada por Tipo de Crédito:**
-   Usar os manuais oficiais da RFB na pasta `Knowledge/` e os atos normativos citados por eles para validar se a aplicação reproduz corretamente as regras de compensação, atualização, consumo de crédito e restrições de retificação para cada tipo de crédito.
+## Alta Prioridade
 
-2. **Matriz de Evidências e Casos de Teste Normativos:**
-   Criar uma matriz auditável cruzando `ExcelParser.ts`, `CalculoService.ts`, `store.ts`, UI e PDF: tipo de crédito, campos do relatório e-CAC, fórmula esperada, fórmula implementada, divergências e evidência normativa.
+1. **Rastreabilidade completa de valores em UI/PDF**
+   - Expandir metadados de origem/metodo para valores importados, calculados, simulados, replicados e fallback.
+   - Priorizar PDF e snapshots de simulacao antes de exportacao Excel.
 
-## Média Prioridade
-1. **Tratamento de Exceções Visuais:** 
-   Se a planilha vier sem algumas colunas ou formato quebrado, o `ExcelParser` joga um `throw new Error`. Criar uma tela de falha limpa ou Toasts em vez de apenas quebrar o React (Error Boundary).
-   
-2. **Validação Regressiva do Relatório PDF:**
-   O relatório consolidado em PDF já existe e deve continuar exportando KPIs, edições manuais, espelho antes/depois, efeitos colaterais e PER/DCOMPs hipotéticas. Após ajustes de lint ou KPI, validar novamente o fluxo "salvar simulação -> relatório consolidado".
+2. **Auditoria normativa guiada por tipo de credito**
+   - Continuar usando os manuais oficiais em `Knowledge/` e atos normativos citados.
+   - Ampliar catalogos consultivos de meios, vedacoes, status processual, SELIC e qualidade de importacao.
 
-## Concluído Recentemente
-- **Lint limpo:** `npm run lint` passa sem erros.
-- **Build de produção:** `npm run build` passa.
-- **Sinal de saldo preservado na UI:** saldos contábeis usam formatação com sinal; deltas/economias usam formatação de magnitude quando aplicável.
+3. **Versionamento do estado persistido**
+   - Definir migracao/limpeza controlada para objetos em IndexedDB (`bsmart-perdcomp-storage`).
+   - Evitar hidratacao silenciosa de snapshots antigos incompativeis.
+
+## Media Prioridade
+
+1. **Relatorio PDF**
+   - O PDF ja possui bloco inicial de premissas/metodologia, mas ainda deve detalhar origem e status de calculo por documento/debito.
+   - Validar fluxo "salvar simulacao -> relatorio consolidado" apos qualquer alteracao de calculo, UI ou snapshot.
+
+2. **Tratamento de excecoes de importacao**
+   - O upload possui fallback local quando o Worker falha.
+   - Ainda falta fortalecer mensagens para colunas ausentes, datas invalidas, valores ausentes e zero importado.
+
+3. **Performance**
+   - Avaliar mover recalculo pos-edicao para Worker se aparecerem cadeias maiores que as planilhas reais atuais.
+
+## Concluido Recentemente
+
+- `npm test` passa com 15 arquivos e 62 testes.
+- `npm run lint` passa.
+- `npm run build` passa com avisos nao bloqueantes de chunk/plugin timing.
+- Persistencia passou a usar IndexedDB via `idb-keyval`.
+- Upload possui fallback local via `importPipeline`.
+- UI ganhou `RastreabilidadePanel`, `StatusBadge` e tooltips consultivos.
+- Regra consultiva `Em analise` foi implementada como vigente, editavel e cancelavel.
+- Snapshots e PDF ganharam rastreabilidade de origem/metodo/status por valor.
 
 ## Backlog de Longo Prazo
-- **Exportação Excel (.xlsx) da Simulação:** Funcionalidade adiada para próxima sessão, com prazo a definir. Deve exportar a cascata/simulações com valores originais, valores novos, deltas, status final e rastreabilidade suficiente para auditoria.
-- Integração com backend (Node/NestJS) e Banco de Dados (PostgreSQL) para salvar as sessões de trabalho e simulações para os advogados, eliminando a dependência pesada de arquivos `.xlsx` salvos e recarregados via `localStorage`.
 
-## Sequência Recomendada de Trabalho (Segurança Codex)
-1. Entenda como o `ExcelParser.ts` estrutura o JSON.
-2. Para ajustes de KPI, rastreie a origem entre `CalculoService.ts`, `store.ts`, `TimelineCascata.tsx`, `CascataKpis.tsx` e `ReportGeneratorService.ts` antes de alterar a UI.
-3. Nunca sobrescreva, recalcule ou contamine campos `...Original`; eles representam a base importada/auditável.
-4. Para auditoria normativa, cite o manual/ato normativo usado, registre a hipótese de cálculo e valide contra uma cadeia real antes de alterar regra de negócio.
-5. Somente mexa no css em `index.css` se precisar adicionar elementos não cobertos.
+- **Exportacao Excel (.xlsx) da simulacao:** abas minimas `Resumo`, `Premissas`, `Cascata`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`.
+- **Backend opcional:** salvar sessoes de trabalho e simulacoes para compartilhamento controlado, sem perder a vantagem de processamento local de dados fiscais.
+- **Code splitting:** reduzir chunks grandes ligados a PDF/importacao.
+
+## Sequencia Recomendada de Trabalho
+
+1. Ler `AGENTS.md` e `docs/AuditoriaTributariaB.Smart/13-RelatorioHandoffCheckpointB4C779A.md`.
+2. Conferir `git status --short --branch`.
+3. Antes de alterar comportamento, localizar a regra em `ExcelParser.ts`, `CalculoService.ts`, `store.ts`, UI e `services/normativo/`.
+4. Nunca sobrescrever, recalcular ou contaminar campos `...Original`.
+5. Para regra normativa, registrar fonte oficial, hipotese, impacto e caso de validacao.
+6. Rodar `npm test`, `npm run lint` e `npm run build` antes de concluir alteracao comportamental.

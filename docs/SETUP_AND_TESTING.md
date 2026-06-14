@@ -1,47 +1,66 @@
 # SETUP_AND_TESTING.md
 
-## Pré-requisitos
-- **Node.js**: Versão >= 18.x
-- **Gerenciador de pacotes**: `npm` ou `yarn`
-- **TypeScript**: Configuração do Vite.
+## Pre-requisitos
 
-## Instalação
-No diretório raiz (`bsmart-perdcomp`):
+- Node.js compativel com o projeto.
+- npm.
+
+## Instalacao
+
+No diretorio raiz do repositorio ativo:
+
 ```bash
 npm install
 ```
 
-## Variáveis de Ambiente
-Não há dependências críticas de chaves de API secretas até o momento. No entanto, criei um `.env.example` padrão no repositório.
-Para iniciar:
-```bash
-cp .env.example .env
-```
-(O `.env` atualmente pode não ter chaves, mas serve de placeholder para futuras integrações de Backend).
-
 ## Rodando Localmente
+
 ```bash
 npm run dev
 ```
-O servidor abrirá em `http://localhost:5173`. O Vite possui HMR (Hot Module Replacement), permitindo edição ágil.
 
-## Testes Manuais (Validação Core)
-Até o momento, não possuímos testes E2E/Unitários automatizados (`vitest`/`jest`). A auditoria e os testes foram feitos via IA.
+O Vite normalmente sobe em `http://localhost:5173`, salvo conflito de porta.
 
-Para validar o sistema manualmente se você modificar o motor lógico:
-1. Abra `localhost:5173`.
-2. Clique no botão de **"Carregar Dados de Exemplo"** (carrega as cascatas de teste de `mockData.ts`) OU faça upload de uma planilha oficial fornecida.
-3. Altere o "Valor Principal" de qualquer DCOMP com código numérico (que já esteja no topo da cascata). 
-4. Valide que as colunas de "NOVO: " apareçam em cor verde (positivo) ou amarela (aviso) ao longo dos itens debaixo na cascata, indicando que a quebra de valor se propagou.
-5. Verifique a Tag de Situação na primeira coluna. Se a redução foi grande e consumiu o crédito inteiro, um "RETIFICAR" vermelho deve ser ativado nas linhas onde houver estouro.
+## Validacoes Automatizadas
 
-## Build para Produção
+Comandos base:
+
 ```bash
+npm test
+npm run lint
 npm run build
 ```
-Certifique-se de não haver erros de tipagem. A aplicação utilizará `tsc -b` para checar tipos antes do vite engatilhar o build de minify.
 
-## Troubleshooting Comum
-- **TypeError: Cannot read properties of undefined (reading '...'):**
-  Ocorre tipicamente se o `bsmart-perdcomp-storage` do LocalStorage está envenenado por um build antigo com objetos inválidos. 
-  **Solução:** F12 no Chrome -> Application -> Local Storage -> Apague `bsmart-perdcomp-storage` e recarregue a página.
+Estado verificado em 2026-06-14:
+
+- `npm test`: aprovado, 15 arquivos e 62 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado. Avisos nao bloqueantes: tempo relevante em `vite:worker-import-meta-url` e chunks acima de 500 kB.
+
+## Cobertura Automatizada Atual
+
+- Servicos normativos puros (`selicMath`, `dateRules`, `creditRules`, `statusRules`, `cascataRules`, `originalValueGuards`, `vedacaoCompensacaoService`).
+- `SelicService` com dados reais importados.
+- `ExcelParser`/`importPipeline` com planilhas reais em `Sheets/`.
+- Preservacao de `ImportQualityReport` no store.
+- `RastreabilidadePanel`.
+- `ReportGeneratorService` com origem/metodo/status por valor no PDF.
+- Mensagens/tooltips consultivos.
+
+## Validacao Manual Recomendada
+
+Use validacao manual quando a mudanca afetar UI, PDF, upload ou fluxo de edicao:
+
+1. Rode `npm run dev`.
+2. Importe uma planilha real de `C:\Projetos\B.Smart_PERDCOMPs\Sheets`.
+3. Confirme que a primeira cadeia e selecionada apos importacao.
+4. Abra uma cadeia e verifique KPIs, tabela e painel de rastreabilidade.
+5. Edite debitos de uma DCOMP vigente/editavel.
+6. Verifique badges de SELIC/status e ausencia de alteracao em campos `...Original`.
+7. Salve uma simulacao e gere PDF consolidado, conferindo premissas/metodologia.
+
+## Troubleshooting
+
+- **Estado antigo/incompativel:** limpar dados do site para a chave `bsmart-perdcomp-storage` em IndexedDB e recarregar.
+- **Worker indisponivel:** o upload deve tentar fallback local; se tambem falhar, conferir mensagem final e a planilha de entrada.
+- **Build com aviso de chunk:** nao bloqueia a validacao atual, mas pode orientar code splitting futuro.

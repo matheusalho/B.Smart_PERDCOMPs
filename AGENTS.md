@@ -7,9 +7,9 @@ O **B.Smart PER/DCOMPs** é uma aplicação web voltada para a área tributária
 
 ## Stack Utilizada
 - **Core:** React 19, TypeScript, Vite
-- **Gerenciamento de Estado:** Zustand (persistido via localStorage em `bsmart-perdcomp-storage`)
+- **Gerenciamento de Estado:** Zustand persistido via `idb-keyval`/IndexedDB na chave `bsmart-perdcomp-storage`, com fallback em memoria quando IndexedDB nao estiver disponivel.
 - **Estilização:** Vanilla CSS (sem Tailwind), usando CSS Variables, Glassmorphism e tema dinâmico (Light/Dark mode). A tipografia oficial do projeto é a **Manrope**.
-- **Leitura de Arquivos:** `xlsx` (SheetJS)
+- **Leitura de Arquivos:** `xlsx` (SheetJS), processado em Web Worker com fallback local pelo pipeline compartilhado.
 - **Componentes / Utilitários:** `lucide-react` (ícones), `date-fns` (manipulação de datas), `react-dropzone` (upload)
 
 ## Estrutura do Repositório
@@ -18,7 +18,7 @@ bsmart-perdcomp/
 ├── src/
 │   ├── components/    # Componentes React de UI e lógicas de visualização (TimelineCascata, ModalEdicao, UploadComponent)
 │   ├── models/        # Tipagens TypeScript (types.ts)
-│   ├── services/      # Lógica pesada de negócio: ExcelParser.ts (Linhagem) e CalculoService.ts (Recálculo da Cascata)
+│   ├── services/      # Lógica pesada de negócio: ExcelParser.ts, CalculoService.ts, importPipeline.ts, ReportGeneratorService.ts e services/normativo/
 │   ├── store/         # Zustand Store (store.ts) gerencia estado global e ações de usuário
 │   ├── utils/         # Helpers (statusHelper.ts) para validação e lógica condicional de status
 │   ├── styles/        # Arquivos CSS principais (index.css) - Design System e paletas
@@ -39,7 +39,7 @@ bsmart-perdcomp/
 
 ## Padrões de Arquitetura e Convenções
 1. **Lógica de Linhagem Desacoplada:** O motor que decide "quem veio de quem" (originais, retificadoras, cancelamentos) mora no `ExcelParser.ts`. O React apenas exibe.
-2. **Matemática Isolada:** Recálculos de saldo original e abatimentos moram inteiramente em `CalculoService.ts`. Não coloque regra de negócio tributária dentro dos componentes `*.tsx`.
+2. **Matemática Isolada:** Recálculos de saldo original e abatimentos moram em `CalculoService.ts`, usando a camada `src/services/normativo/` quando houver resultado rastreavel. Não coloque regra de negócio tributária dentro dos componentes `*.tsx`.
 3. **Imutabilidade e Zustand:** O estado central é o objeto `CadeiaRelacional`. Quando o usuário edita um débito, o Zustand cria uma cópia da DCOMP, chama o `CalculoService` para repassar as quebras, e injeta as novas tags (`EDITADO`, `RETIFICAR`, `IMPACTADO_BLOQUEADO`) no array global.
 4. **CSS Premium Glassmorphism:** **PROIBIDO** usar Tailwind. As classes CSS (`.card-glass`, `.status-led`) estão no `index.css`. O design segue a paleta Balera Advogados, usando tons slate e efeitos backdrop-blur para dar aspecto Premium de 2026.
 

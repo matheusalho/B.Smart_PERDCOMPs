@@ -71,7 +71,7 @@ simulacoes do usuario e informacoes exibidas na UI.
 - Classificacao consultiva de status, vigencia e editabilidade.
 - Indicadores de qualidade da SELIC.
 - Alertas consultivos de vedacao e pontos de atencao normativa.
-- Persistencia local com Zustand e IndexedDB/local storage conforme o estado.
+- Persistencia local com Zustand e IndexedDB via `idb-keyval`.
 - Exportacao de relatorio PDF consolidado.
 - Testes automatizados com planilhas reais de validacao.
 

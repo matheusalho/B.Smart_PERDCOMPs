@@ -26,6 +26,21 @@ Camadas cobertas:
 - rastreabilidade em UI/PDF/Excel;
 - fixtures normativas.
 
+## Estado Atual Verificado em 2026-06-14
+
+- Branch atual: `main`.
+- Checkpoint tecnico recente: `b4c779a chore: checkpoint current PERDCOMP state`; commit posterior `a305029` atualizou o README publico.
+- `package.json` possui `test`, `lint`, `build`, `dev` e `preview`.
+- Validacao executada na rodada documental inicial: `npm test` aprovado com 14 arquivos/60 testes, `npm run lint` aprovado e `npm run build` aprovado com avisos nao bloqueantes de chunk/plugin timing.
+- Validacao executada apos Passo 1: `npm test` aprovado com 15 arquivos/62 testes.
+- `CalculoService.ts` integra `calcularSelicRastreavel(...)` e usa resultado normativo quando disponivel, mantendo fallback historico identificado quando faltam dados/taxa.
+- `store.ts` persiste em IndexedDB via `idb-keyval`, nao apenas em `localStorage`.
+- `UploadComponent.tsx` usa Worker e fallback local via `importPipeline`.
+- UI inclui `RastreabilidadePanel`, `StatusBadge` e tooltips consultivos.
+- PDF ja possui bloco inicial de premissas/metodologia e origem/metodo/status por valor individual nos comparativos quando o snapshot possui `rastreabilidadeValores`.
+- Passo 1 implementou `rastreabilidadeValores` nos snapshots e origem/metodo/status nas celulas monetarias do PDF.
+- Itens nao rastreados no git nesta rodada: `docs/AuditoriaTributariaB.Smart/13-RelatorioHandoffCheckpointB4C779A.md`, `testSelic.ts` e `tmp/`.
+
 Fora de escopo nesta primeira implementacao:
 
 - apuracao operacional completa de IPI, RAIPI, estornos, trimestre e menor saldo ajustado;
@@ -337,14 +352,16 @@ Excel futuro deve ter, no minimo:
 
 ### Pre-condicao tecnica
 
-O `package.json` atual possui scripts de `dev`, `build`, `lint` e `preview`, mas nao possui runner nem script de testes automatizados. Portanto, a primeira autorizacao de implementacao deve incluir a criacao da infraestrutura minima de testes antes de qualquer alteracao comportamental.
+Historico: antes da Fase 1, o `package.json` possuia scripts de `dev`, `build`, `lint` e `preview`, mas nao possuia runner nem script de testes automatizados.
 
-Recomendacao pratica:
+Estado atual: Vitest e script `test` ja existem. A pre-condicao de testes foi cumprida e revalidada em 2026-06-14 com 15 arquivos/62 testes apos o Passo 1.
 
-- adicionar runner de testes compativel com Vite/TypeScript, preferencialmente Vitest;
-- criar script `test`;
-- manter a primeira leva de testes em servicos puros, sem renderizar UI;
-- nao integrar os novos servicos ao fluxo ativo ate os contratos normativos estarem verdes.
+Recomendacao pratica atual:
+
+- manter testes de servicos puros como contrato de regressao;
+- adicionar testes focados antes de ampliar comportamento ativo;
+- registrar em AUD-09 qualquer nova regra normativa, UI consultiva ou relatorio que vire comportamento validado;
+- nao endurecer alerta consultivo como bloqueio sem fonte oficial, hipotese, impacto e caso de validacao.
 
 ### Fase 1 - Contratos e testes sem alterar comportamento
 
@@ -438,9 +455,9 @@ Antes de aceitar implementacao:
 
 ## Estado
 
-- Status: Fase 1 implementada e revalidada.
-- Implementacao: autorizada pelo usuario em 2026-06-07, limitada a infraestrutura de testes, contratos e servicos puros.
-- Proximo passo apos revalidacao: revisar/autorizar Fase 2, com importacao de metadados opcionais e classificadores consultivos, ainda sem bloqueio duro.
+- Status: Fases 1, 2, 3 e 4 parcialmente executadas e revalidadas; checkpoint `b4c779a` adicionou melhorias de UI/rastreabilidade, fallback de Worker, vedacao consultiva e cobertura de testes.
+- Implementacao ativa: contratos normativos, importacao de metadados, classificadores consultivos, SELIC rastreavel, provider SELIC, integracao controlada com `CalculoService`, persistencia IndexedDB, painel de rastreabilidade e PDF com premissas iniciais.
+- Proximo passo recomendado: consolidar origem/metodo/status por valor em UI/PDF/snapshots, versionar schema persistido e planejar Excel auditavel.
 
 ## Rodada de Implementacao Fase 1 - 2026-06-07
 
@@ -558,6 +575,53 @@ Validacao executada:
 Proximo passo recomendado:
 
 - ampliar a Fase 3 para pagamento indevido/eSocial, CPIM e art. 152 com dados reais/complementares; depois preparar Fase 4 de integracao controlada com `CalculoService`.
+
+## Rodada de Consolidacao Documental - 2026-06-14
+
+Escopo verificado sem alterar codigo:
+
+- leitura do handoff `13-RelatorioHandoffCheckpointB4C779A.md`;
+- inventario Markdown do projeto;
+- comparacao contra codigo, UI, testes e git status;
+- validacao por `npm test`, `npm run lint` e `npm run build`.
+
+Estado confirmado:
+
+- 15 arquivos de teste e 62 testes aprovados apos o Passo 1;
+- `CalculoService.ts` integrado ao `SelicService` com fallback;
+- `idb-keyval`/IndexedDB ativo no store;
+- Worker com fallback local pelo `importPipeline`;
+- UI de rastreabilidade e badges padronizados;
+- `VED-DCTFWEB-CRUZADA` consultivo por PA do credito;
+- PDF com premissas/metodologia inicial.
+
+## Rodada Passo 1 - Rastreabilidade por Valor - 2026-06-14
+
+Entregas:
+
+- Tipo de snapshot para rastreabilidade por DCOMP/valor.
+- Helper puro `src/services/valueTraceability.ts`.
+- Persistencia de `rastreabilidadeValores` em `salvarSimulacaoCadeia`.
+- PDF com origem/metodo/status nas celulas monetarias quando o metadado existe.
+- Teste de store para snapshot e teste de PDF para renderizacao do metadado.
+
+Validacao:
+
+- RED observado nos testes novos antes da implementacao.
+- `npm test -- src/__tests__/storeImportQuality.test.ts src/services/__tests__/ReportGeneratorService.test.ts`: aprovado.
+- `npm test`: aprovado com 15 arquivos e 62 testes.
+
+Risco residual:
+
+- Snapshots antigos persistidos em IndexedDB podem nao possuir `rastreabilidadeValores`; o PDF mantém fallback para valor monetario simples nesses casos.
+- O layout do PDF pode precisar de ajuste visual fino por causa de celulas mais densas.
+
+Limites ainda vigentes:
+
+- `...Original` permanece intocavel;
+- credito judicial sem componentes segue como `dados_insuficientes`;
+- DCOMP hipotetica precisa de data auditavel e metodo SELIC proprio;
+- alertas consultivos nao devem virar bloqueios duros sem nova autorizacao e fonte normativa.
 
 ## Pedido de Autorizacao Recomendado
 

@@ -11,6 +11,7 @@ Alta.
 ## Estado Atual
 
 - Relatorio PDF consolidado implementado.
+- PDF ja possui bloco inicial de premissas/metodologia e alertas globais.
 - Exportacao Excel esta no backlog, com prazo a definir.
 
 ### Rodada de Auditoria de 2026-06-07
@@ -34,6 +35,34 @@ Leitura tecnica:
 - O relatorio nao inclui fonte normativa, status de calculo (`normativo`, `estimativa_historica`, `dados_insuficientes`, `vedado`), nem justificativa de status/bloqueio.
 - DCOMPs hipoteticas aparecem em secao propria, mas sem declarar que o consumo atual e calculado por aproximacao operacional enquanto a engine SELIC normativa nao esta implementada.
 
+### Atualizacao de Estado - 2026-06-14
+
+O checkpoint `b4c779a` alterou parte do estado acima:
+
+- `ReportGeneratorService.ts` ja adiciona uma "Declaracao de Premissas e Metodologia" ao PDF.
+- O PDF ja consolida alertas globais de vedacao e indica quando ha estimativas/dados insuficientes em metadados de auditoria.
+- O servico ja diferencia algumas informacoes de SELIC por `resultadoSelic`.
+
+Ainda permanecem validos como lacuna:
+
+- distincao completa entre importado, calculado, simulado, replicado e fallback;
+- snapshot com versao de regra/tabela/fonte em granularidade suficiente;
+- Excel auditavel.
+
+### Atualizacao de Estado - Passo 1 de 2026-06-14
+
+Implementado:
+
+- `SimulacaoSalva.rastreabilidadeValores` registra valores por DCOMP em metadado separado.
+- O PDF usa essa rastreabilidade para imprimir origem/metodo/status nas celulas de valores dos comparativos.
+- `src/services/valueTraceability.ts` centraliza a classificacao de origem/metodo dos principais campos monetarios.
+
+Lacunas remanescentes:
+
+- Revisar ergonomia visual do PDF em cadeias grandes, pois as celulas passam a ser mais densas.
+- Levar o mesmo contrato para exportacao Excel futura.
+- Ampliar granularidade para todos os metadados de simulacao quando DCOMP hipotetica ganhar data auditavel completa.
+
 ## Codigo Relacionado
 
 - `src/services/ReportGeneratorService.ts`
@@ -49,7 +78,7 @@ Leitura tecnica:
 
 ## Achados da Rodada
 
-### ACH-016 - PDF nao declara metodologia, fonte normativa ou status do calculo
+### ACH-016 - PDF ganhou granularidade inicial de metodologia, fonte normativa e status do calculo
 
 - Objeto relacionado: AUD-01, AUD-04, AUD-05, AUD-07, AUD-08, AUD-09.
 - Criticidade: Alta.
@@ -57,7 +86,7 @@ Leitura tecnica:
   - `ReportGeneratorService.ts`, linhas 196 a 205, 247 a 261, 285 a 405 e 410 a 540.
   - `TimelineCascata.tsx`, linhas 90 a 105.
 - Descricao:
-  - O PDF apresenta resultados consolidados e comparativos, mas nao informa se cada valor recalculado foi importado da RFB, calculado pelo motor, simulado pelo usuario, estimado por fator historico ou validado normativamente.
+  - O PDF possui bloco global de premissas/metodologia e, desde o Passo 1, passa a imprimir origem/metodo/status por valor quando o snapshot possui `rastreabilidadeValores`.
 - Risco:
   - O usuario pode interpretar uma estimativa operacional como calculo SELIC normativo.
   - O relatorio pode ser usado sem evidenciar premissas, fontes, dados ausentes ou risco residual.
@@ -119,7 +148,7 @@ Leitura tecnica:
 
 ### PDF
 
-Incluir, antes dos resultados numericos:
+Complementar o bloco ja existente de premissas/metodologia com:
 
 - legenda de classes de valor;
 - aviso de que, ate a implementacao de `SelicService`, DCOMPs editadas/hipoteticas usam estimativa operacional quando nao houver calculo normativo;

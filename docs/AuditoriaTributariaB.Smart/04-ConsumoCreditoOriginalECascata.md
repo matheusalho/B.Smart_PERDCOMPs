@@ -59,6 +59,17 @@ Leitura tecnica do algoritmo atual:
 - A divergencia de entrada compara `valorCreditoDataTransmissao` importado com o saldo calculado antes do abatimento do documento corrente e, se a diferenca superar cinco centavos, gera `RETIFICAR`, `EDITADO_E_RETIFICAR` ou `IMPACTADO_BLOQUEADO`.
 - `statusHelper.ts` considera nao vigente apenas situacoes expressamente listadas e trata os demais status como vigentes por fallback.
 
+### Atualizacao de Estado - 2026-06-14
+
+Desde a rodada acima, `CalculoService.ts` passou a chamar `calcularSelicRastreavel(...)` no fluxo ativo de DCOMPs reais. Em DCOMP editada, quando `resultadoSelic.statusCalculo = normativo`, o motor usa `creditoOriginalUtilizadoCalculado`; quando o resultado e `dados_insuficientes` ou estimado, preserva fallback historico identificado.
+
+Permanecem validas as lacunas deste objeto:
+
+- heuristica textual para estrategia de multiplos detalhamentos;
+- fallback de pool sem origem/confianca granular;
+- necessidade de separar status tecnico de acao sugerida;
+- metadado de origem para valor replicado/exibido.
+
 ## Achados da Rodada
 
 ### ACH-010 - Estrategia de consumo por tipo de credito ainda depende de texto livre

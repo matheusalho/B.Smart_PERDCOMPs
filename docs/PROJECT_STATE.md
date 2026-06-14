@@ -1,46 +1,61 @@
 # PROJECT_STATE.md
 
 ## Resumo Executivo
-O **B.Smart PER/DCOMPs** está em fase de protótipo de alta fidelidade e com o núcleo lógico da prova de conceito consolidado. A aplicação importa arquivos `.xlsx` do e-CAC, processa corretamente o relacionamento de retificações e cancelamentos (Linhagens / Cascatas) e exibe uma simulação visual premium, permitindo edição matemática dos débitos para que advogados tributaristas identifiquem distorções ou falta de saldo nas compensações subsequentes.
 
-## O que já está Implementado e Funcional
-- **Importação de Planilha:** Leitura e tipagem correta de `.xlsx` (abas Processamento e Débitos) utilizando a biblioteca `xlsx`.
-- **Processamento em Web Worker:** O upload delega o parse e o primeiro recálculo para `src/workers/excelWorker.ts`, reduzindo bloqueio da main thread durante a importação.
-- **Motor de Linhagem:** `ExcelParser.ts` lida de forma exemplar com a formação de árvores familiares, garantindo que documentos predecessores fiquem antes dos sucessores (resolvemos o bug em que DCOMPs com mesma data ficavam misturadas).
-- **Recálculo em Cascata:** O `CalculoService.ts` calcula as variações matemáticas e atualiza os saldos corretamente, classificando documentos como `OK`, `RETIFICAR`, `IMPACTADO_BLOQUEADO` ou `EDITADO`.
-- **Formatação de Datas do Excel:** Uma função `formatPeriodoExcel` foi criada e testada na exaustão. Números seriais como `45839` agora são lindamente exibidos em `DD/MM/YYYY`.
-- **Design System Premium:** Todo o estilo foi polido seguindo uma estética de Glassmorphism. A tabela rola bem, os KPIs são dinâmicos e há botões flutuantes, além do toggle Light/Dark mode estar operacional.
-- **Tabela de Edição de Débitos (Modal):** Permite abaixar o "Valor Principal" de um débito e recalcula proporcionalmente a Multa e Juros, informando o Delta real de economia.
-- **Filtros Dinâmicos:** Filtros da tabela funcionam perfeitamente, com destaque para a visualização exclusiva de declarações "Vigentes/Editáveis".
-- **Dashboard Executivo Global:** A tela principal exibe empresa analisada, CNPJ, intervalo de anos, total de cadeias, total de PER/DCOMPs, cadeias editadas, lastro disponibilizado e débitos reduzidos.
-- **Persistência Local das Simulações:** O Zustand persiste cadeias, empresa e simulações salvas no `localStorage` por meio da chave `bsmart-perdcomp-storage`.
-- **Relatório Consolidado em PDF:** O usuário pode salvar simulações de cadeias e gerar um relatório PDF consolidado com KPIs, edições manuais, espelho antes/depois, impactos colaterais e PER/DCOMPs hipotéticas.
-- **PER/DCOMP Hipotética com Modal:** A inclusão de declarações hipotéticas já usa modal dedicado, suporta múltiplos débitos e filtro por origem de código de receita.
+O **B.Smart PER/DCOMPs** esta em evolucao ativa sobre a branch `main`. A aplicacao importa arquivos `.xlsx` reais do e-CAC, reconstrui cadeias relacionais, preserva valores `...Original`, executa simulacoes de debitos, exibe rastreabilidade por PER/DCOMP e usa uma camada normativa consultiva para status, SELIC e vedacoes.
 
-## O que está Parcialmente Implementado
-- **Exportação de Resultados:** A exportação PDF está implementada e validada em fluxo funcional. A exportação Excel ainda não foi iniciada e permanece no backlog.
-- **Indicadores / KPIs:** Renomeamos os KPIs com base em feedback do usuário (ex: "Lastro Original Disponibilizado"). A UI agora preserva sinal negativo em saldos contábeis, usando formatação com magnitude apenas para métricas de redução/economia.
+Estado verificado em 2026-06-14:
 
-## O que ainda não foi Iniciado
-- **Exportação Excel:** A geração de planilha `.xlsx` com o espelho da simulação, deltas e rastreabilidade dos valores originais ainda não foi implementada. Prazo a definir.
-- **Autenticação / Persistência no Backend:** Hoje o estado vive apenas na aba do browser via `localStorage`.
+- `npm test`: aprovado, 15 arquivos de teste e 62 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado, com avisos nao bloqueantes de plugin timing e chunk acima de 500 kB.
 
-## Bugs Conhecidos / Limitações Atuais
-- Nenhum bug funcional bloqueante conhecido após a correção de lint e do sinal negativo em saldos da UI.
-- *Limitação:* O estado vive apenas no `bsmart-perdcomp-storage` (localStorage). Se o usuário fechar o browser, limpar cookies ou mudar de máquina, a simulação será perdida e ele deverá reimportar a planilha.
+## O Que Ja Esta Implementado e Funcional
 
-## Riscos Técnicos e Dívidas
-- **Desempenho:** A importação já usa Web Worker, mas edições e recálculos disparados pela store ainda podem atingir cadeias inteiras de forma síncrona. Se alguma cadeia tiver volume muito acima dos dados reais atuais, a renderização do React pode gargalar.
-- **Tratamento de Fuso Horário Local:** Lidamos com o Excel UTC offset, que foi estabilizado compensando com timezone na máquina local do usuário.
-- **Tipagens em `xlsx`:** A biblioteca `xlsx` converte tudo em `any` arrays. Pode haver chaves inconsistentes no futuro caso a Receita Federal altere os nomes das colunas da planilha padrão.
-- **Bundle de Relatório:** `jspdf` e dependências relacionadas aumentam chunks de produção. O build passa, mas Vite alerta sobre chunks acima de 500 kB.
+- **Importacao de planilha:** leitura de `.xlsx` do e-CAC nas abas de processamento e debitos, usando `xlsx`.
+- **Processamento em Web Worker:** `UploadComponent.tsx` delega parse e primeiro recalculo para `src/workers/excelWorker.ts`.
+- **Fallback local de importacao:** se o Worker falhar, o upload tenta `src/services/importPipeline.ts` no thread principal e retorna mensagem mais acionavel.
+- **Motor de linhagem:** `ExcelParser.ts` forma cadeias relacionais e preserva metadados importados, classificacoes consultivas e `ImportQualityReport`.
+- **Recalculo em cascata:** `CalculoService.ts` recalcula saldos, chama `calcularSelicRastreavel(...)` quando aplicavel e usa fallback historico quando faltam dados normativos suficientes.
+- **Classificacao consultiva:** `src/services/normativo/` contem regras de credito, status, cascata, datas, SELIC, vedacoes e guards de `...Original`.
+- **Rastreabilidade na UI:** `TimelineCascata.tsx` integra `RastreabilidadePanel` e `StatusBadge`, com tooltips de status, papel na cadeia, SELIC, origem e dados ausentes.
+- **Modal de debitos:** permite edicao controlada de debitos vigentes/editaveis e visualizacao somente leitura para documentos bloqueados ou nao vigentes.
+- **Persistencia local:** Zustand persiste cadeias, empresa, simulacoes e qualidade de importacao via `idb-keyval`/IndexedDB na chave `bsmart-perdcomp-storage`; ha fallback em memoria quando IndexedDB nao existe.
+- **Relatorio PDF:** `ReportGeneratorService.ts` gera PDF consolidado com capa, KPIs, premissas/metodologia, alertas, edicoes manuais, efeitos colaterais, DCOMPs hipoteticas e origem/metodo/status por valor quando o snapshot possui rastreabilidade.
+- **Testes automatizados:** Vitest cobre servicos normativos, parser com planilhas reais, store de qualidade de importacao, rastreabilidade, PDF e tooltips.
 
-## Próximos Passos Recomendados
-1. Iniciar auditoria guiada das regras tributárias por tipo de crédito usando os manuais oficiais da RFB em `Knowledge/` e os atos normativos citados por eles.
-2. Construir matriz de validação: tipo de crédito, regra de saldo inicial, regra de atualização Selic, regra de consumo, vigência/bloqueio, campos e evidências do relatório e-CAC.
-3. Validar regressivamente o fluxo PDF após cada ajuste normativo.
-4. Planejar a **Exportação Excel** em sessão futura. Prazo a definir.
-5. Avaliar um backend leve, versionamento de store ou armazenamento IndexedDB se as simulações se tornarem excessivamente grandes para `localStorage`.
+## Parcialmente Implementado
 
-## Observações Relevantes do Antigravity
-A transição entre o Modo Claro e Escuro sofreu ajustes profundos de contraste nas últimas interações. Se forem criar novas tags coloridas de Status, é imperativo usar cores que sejam vibrantes contra fundos escuros (`color-mix` no CSS ajuda), mas que não "apaguem" no modo Light.
+- **Exportacao de resultados:** PDF existe e foi ampliado com premissas/metodologia; exportacao Excel continua no backlog.
+- **SELIC normativa:** `SelicService` esta integrado ao recalc de DCOMPs editadas quando `statusCalculo = normativo`; casos com dados ausentes ou taxa indisponivel continuam como `dados_insuficientes` ou `estimativa_historica`.
+- **Vedacoes:** `VedacaoCompensacaoService` existe em modo consultivo, incluindo alerta DCTFWeb/previdenciario por PA do credito, mas nao deve ser tratado como matriz normativa completa.
+- **Rastreabilidade de valores:** snapshots salvos carregam `rastreabilidadeValores` por DCOMP; ainda falta expandir o contrato para Excel futuro e refinar a ergonomia visual do PDF.
+
+## Ainda Nao Iniciado
+
+- **Exportacao Excel:** gerar `.xlsx` com abas `Resumo`, `Premissas`, `Cascata`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`.
+- **Backend/sincronizacao:** nao ha backend, multiusuario ou sincronizacao entre maquinas.
+- **Versionamento de schema persistido:** IndexedDB reduziu o risco de cota, mas ainda falta migracao/versionamento formal de objetos persistidos.
+
+## Bugs Conhecidos e Limitacoes Atuais
+
+- Nenhum bug funcional bloqueante conhecido apos a validacao de 2026-06-14.
+- O estado continua local ao navegador/dispositivo; limpar dados do site, trocar de navegador/maquina ou mudar schema sem migracao pode exigir reimportacao.
+- Recalculos pos-edicao ainda podem percorrer cadeias inteiras no thread principal.
+- Credito judicial sem componentes continua exigindo dado complementar para resultado normativo.
+- PDF melhorou a metodologia, mas ainda precisa expandir origem de valor e status de calculo por documento/debito.
+
+## Riscos Tecnicos e Dividas
+
+- **Performance:** planilhas muito maiores que as reais atuais podem exigir mover recalculo pos-edicao para Worker.
+- **Schema persistido:** objetos antigos em IndexedDB podem ficar incompativeis se o modelo mudar sem migracao.
+- **Tipagens em `xlsx`:** a biblioteca converte linhas em estruturas flexiveis; mudancas de cabecalho da RFB podem exigir mapeamento mais defensivo.
+- **Bundle de relatorio:** `jspdf`, `html2canvas` e pipeline de importacao geram chunks grandes; o build passa, mas Vite alerta sobre chunk acima de 500 kB.
+- **Normativo:** catalogos consultivos ainda nao equivalem a bloqueios duros; qualquer endurecimento exige fonte oficial, hipotese, impacto e caso de validacao.
+
+## Proximos Passos Recomendados
+
+1. Definir versionamento/migracao do schema persistido em IndexedDB, considerando snapshots antigos sem `rastreabilidadeValores`.
+2. Planejar exportacao Excel auditavel usando o contrato de rastreabilidade por valor.
+3. Refinar ergonomia visual do PDF se as celulas ficarem densas em cadeias grandes.
+4. Avaliar code splitting para reduzir warnings de chunk.

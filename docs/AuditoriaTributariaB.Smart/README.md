@@ -11,6 +11,8 @@ O objetivo e transformar o motor atual de simulacao em uma base tecnicamente aud
 - `09-CasosTesteMatrizEvidencias.md`: matriz transversal para casos de teste normativos e evidencias.
 - `10-BaseGeralPERDCOMPWeb.md`: consolidado dos manuais gerais do PER/DCOMP Web, meios permitidos, vedacoes e informacao de debitos.
 - `11-DesenhoTecnicoImplementacaoNormativa.md`: desenho tecnico consolidado para futura implementacao normativa autorizada.
+- `12-RelatorioContinuidadeAuditoriaImplementacao.md`: continuidade longitudinal da auditoria e implementacao.
+- `13-RelatorioHandoffCheckpointB4C779A.md`: handoff do checkpoint `b4c779a`, incluindo rastreabilidade de UI, fallback de Worker, `StatusBadge`, vedacao DCTFWeb consultiva e validacao 14/60.
 
 ## Objetos de Auditoria
 

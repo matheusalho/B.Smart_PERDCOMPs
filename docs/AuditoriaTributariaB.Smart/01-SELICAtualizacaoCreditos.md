@@ -116,12 +116,12 @@ Atos normativos citados nos manuais lidos:
 - Ressarcimento de PIS/Pasep e Cofins nao cumulativos: Leis n. 10.637/2002 e 10.833/2003; Lei n. 5.172/1966, art. 168, inciso I; Solucao de Consulta Cosit n. 125/2021; IN RFB n. 2.055/2021, Anexos I e IV, para SCP/processo quando o roteiro remete.
 - Ressarcimento de IPI: para elegibilidade operacional contextual, IN RFB n. 2.055/2021, arts. 40, 41, 42, 44, paragrafo 3, 45 e 67; para SELIC/valoracao do credito, IN RFB n. 2.055/2021, arts. 148, 151, 152 e 157; demais atos do roteiro de IPI permanecem fora do escopo de implementacao neste ciclo.
 
-Impacto no codigo atual:
+Impacto no codigo atual verificado em 2026-06-14:
 
-- `CalculoService.ts` possui `calcularSelicAcumulada`, mas a funcao nao e usada pelo fluxo ativo de `recalcularCadeia`.
-- O fluxo ativo de DCOMP real nao editada preserva o valor importado `valorUtilizadoPerdcompOriginal`, o que esta correto para rastreabilidade da base RFB.
-- O fluxo ativo de DCOMP editada descapitaliza por fator historico (`totalDebitosOriginal / valorUtilizadoPerdcompOriginal`) e nao por taxa SELIC calculada a partir do tipo de credito, marco inicial e transmissao original.
-- O fluxo ativo de DCOMP hipotetica deriva fator da ultima DCOMP real e soma taxa acumulada do mes da ultima transmissao, sem usar a data hipotetica nem o marco inicial normativo do tipo de credito.
+- `CalculoService.ts` ainda mantem helpers historicos (`calcularSelicAcumulada`, `aplicarAtualizacaoSelic`) como legado, mas o fluxo ativo de `recalcularCadeia` tambem chama `calcularSelicRastreavel(...)`.
+- DCOMP real nao editada preserva `valorUtilizadoPerdcompOriginal`.
+- DCOMP real editada usa `resultadoSelic.statusCalculo = normativo` para substituir `valorUtilizadoPerdcomp` quando o resultado e suficiente; se nao houver dado/taxa suficiente, usa fallback historico identificado.
+- DCOMP hipotetica ainda usa fator da ultima DCOMP real e `getSelicMensal` como aproximacao operacional; falta data de transmissao hipotetica auditavel e regra normativa completa para esse fluxo.
 - A tabela `Selic_Acumulada_ate_06.2026.pdf` e uma tabela do Sicalc para acrescimos legais ate junho/2026 e instrui uso pela competencia de vencimento do debito. Seu uso como base para credito por subtracao de acumuladas precisa ser tratado como hipotese tecnica a validar, nao como regra normativa final isolada.
 - Salario-Familia e Salario-Maternidade PJ nao devem entrar na engine de DCOMP como compensacao simulavel; se aparecerem no relatorio, devem ser tratados como reembolso e/ou alerta de vedacao de DCOMP.
 - Ressarcimento de PIS/Cofins exige distinguir DCOMP sem PER previo, quando admitida por bases legais e prazo, de DCOMP posterior a PER. O marco de 361 dias depende da transmissao do pedido de ressarcimento original, nao do periodo de apuracao do credito.
@@ -167,7 +167,7 @@ Limites preservados:
 - `CalculoService.ts` nao foi integrado nesta rodada;
 - a taxa foi injetada em teste como fixture validada, nao obtida por inferencia da tabela Sicalc.
 
-Gates executados:
+Gates executados naquela rodada:
 
 - `npm run test`: aprovado, 10 arquivos de teste, 44 testes;
 - `npm run lint`: aprovado;
@@ -176,6 +176,27 @@ Gates executados:
 Proximo passo recomendado:
 
 - testar art. 152 com dados complementares quando disponiveis; depois preparar Fase 4 de integracao controlada com `CalculoService`.
+
+## Estado Atual Pos-Checkpoint b4c779a - 2026-06-14
+
+Confirmado no codigo:
+
+- `src/services/normativo/selicProvider.ts` usa `src/selicMensal.json` para obter taxa SELIC acumulada.
+- `src/services/CalculoService.ts` chama `calcularSelicRastreavel(...)` dentro do fluxo ativo de DCOMP real.
+- `src/components/TimelineCascata.tsx`, `src/components/ModalEdicao.tsx` e `src/components/RastreabilidadePanel.tsx` exibem status/qualidade SELIC quando `resultadoSelic` esta presente.
+- `src/services/ReportGeneratorService.ts` ja inclui bloco global de premissas/metodologia e, apos o Passo 1, imprime origem/metodo/status por valor quando o snapshot possui `rastreabilidadeValores`.
+
+Validacao de 2026-06-14:
+
+- `npm test`: aprovado com 15 arquivos e 62 testes apos o Passo 1.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado, com avisos nao bloqueantes de chunk/plugin timing.
+
+Risco residual:
+
+- O resultado normativo ainda depende da disponibilidade de dados e taxa.
+- Credito judicial sem componentes permanece `dados_insuficientes`.
+- DCOMP hipotetica continua exigindo tratamento futuro de data auditavel e metodo SELIC proprio.
 
 ### ACH-006 - Credito judicial exige regra por componente e forma de atualizacao
 

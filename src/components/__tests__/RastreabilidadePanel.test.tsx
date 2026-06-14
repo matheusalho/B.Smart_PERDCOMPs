@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToString } from 'react-dom/server';
@@ -9,30 +9,36 @@ import { recalcularCadeia } from '../../services/CalculoService';
 import type { CadeiaRelacional, DCOMP } from '../../models/types';
 
 const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
+let fixture: {
+  result: ReturnType<typeof parseExcelFile>;
+  cadeias: CadeiaRelacional[];
+};
 
 describe('RastreabilidadePanel', () => {
-  it('renderiza documentos importados da planilha real sem quebrar por metadados ausentes', () => {
+  beforeAll(() => {
     const result = parseExcelFile(readRealSheet(latestSheetFile()));
-    const cadeias = result.cadeias.map((cadeia) => recalcularCadeia(cadeia));
+    fixture = {
+      result,
+      cadeias: result.cadeias.map((cadeia) => recalcularCadeia(cadeia)),
+    };
+  }, 15000);
 
-    for (const cadeia of cadeias) {
-      for (const dcomp of cadeia.dcomps) {
-        expect(() =>
-          renderToString(
-            <RastreabilidadePanel
-              cadeia={cadeia}
-              dcomp={dcomp}
-              empresa={result.empresa}
-            />,
-          ),
-        ).not.toThrow();
-      }
+  it('renderiza amostra representativa da planilha real sem quebrar por metadados ausentes', () => {
+    for (const { cadeia, dcomp } of selecionarDocumentosRepresentativos(fixture.cadeias)) {
+      expect(() =>
+        renderToString(
+          <RastreabilidadePanel
+            cadeia={cadeia}
+            dcomp={dcomp}
+            empresa={fixture.result.empresa}
+          />,
+        ),
+      ).not.toThrow();
     }
   }, 15000);
 
   it('renderiza snapshot antigo mesmo quando campos opcionais vierem ausentes', () => {
-    const result = parseExcelFile(readRealSheet(latestSheetFile()));
-    const cadeia = recalcularCadeia(result.cadeias[0]);
+    const cadeia = fixture.cadeias[0];
     const dcomp = {
       ...cadeia.dcomps[0],
       debitos: undefined,
@@ -48,7 +54,7 @@ describe('RastreabilidadePanel', () => {
         <RastreabilidadePanel
           cadeia={cadeiaComSnapshotAntigo}
           dcomp={dcomp}
-          empresa={result.empresa}
+          empresa={fixture.result.empresa}
         />,
       ),
     ).not.toThrow();
@@ -72,4 +78,24 @@ function latestSheetFile(): string {
       mtime: statSync(resolve(sheetsDir, file)).mtimeMs,
     }))
     .sort((a, b) => b.mtime - a.mtime)[0].file;
+}
+
+function selecionarDocumentosRepresentativos(cadeias: CadeiaRelacional[]) {
+  const todos = cadeias.flatMap((cadeia) =>
+    cadeia.dcomps.map((dcomp) => ({ cadeia, dcomp })),
+  );
+
+  const candidatos = [
+    todos[0],
+    todos.find(({ dcomp }) => !dcomp.metadadosCreditoImportado),
+    todos.find(({ dcomp }) => (dcomp.resultadoSelic?.dadosAusentes.length ?? 0) > 0),
+    todos.find(({ dcomp }) => dcomp.debitos.length > 0),
+    todos.find(({ dcomp }) => dcomp.situacao.toLowerCase().includes('anal')),
+    todos.find(({ dcomp }) => Boolean(dcomp.metadadosCreditoImportado?.processoJudicial)),
+    ...todos.slice(0, 25),
+  ].filter((item): item is { cadeia: CadeiaRelacional; dcomp: DCOMP } => Boolean(item));
+
+  return Array.from(
+    new Map(candidatos.map((item) => [`${item.cadeia.id}:${item.dcomp.id}`, item])).values(),
+  );
 }

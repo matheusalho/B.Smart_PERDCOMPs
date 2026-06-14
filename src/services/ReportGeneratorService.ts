@@ -2,6 +2,10 @@ import type { SimulacaoSalva, CadeiaRelacional, DCOMP } from '../models/types';
 import { format } from 'date-fns';
 import { isVigente } from '../utils/statusHelper';
 import { verificarVedacaoCredito, verificarVedacaoDebito } from './normativo/vedacaoCompensacaoService';
+import {
+  buscarRastreabilidadeValor,
+  formatarResumoRastreabilidadeValor,
+} from './valueTraceability';
 import type { jsPDF as JsPDFDocument } from 'jspdf';
 import type { RowInput, Table } from 'jspdf-autotable';
 
@@ -26,6 +30,19 @@ const getCreditoDataTransmissaoRecalculado = (dcomp: DCOMP): number => (
 const getSaldoProximaDcompOriginal = (dcomp: DCOMP, fallback: number): number => (
   dcomp.saldoCreditoOriginalAnterior ?? fallback
 );
+
+const formatCurrencyWithTrace = (
+  simulacao: SimulacaoSalva,
+  dcomp: DCOMP,
+  campo: string,
+  val: number,
+) => {
+  const resumo = formatarResumoRastreabilidadeValor(
+    buscarRastreabilidadeValor(simulacao, dcomp.id, campo),
+  );
+
+  return resumo ? `${formatCurrency(val)}\n${resumo}` : formatCurrency(val);
+};
 
 export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'dark' | 'light', todasAsCadeias: CadeiaRelacional[] = [], empresa: { razaoSocial: string; cnpj: string } | null = null) => {
   const { default: jsPDF } = await import('jspdf');
@@ -427,20 +444,20 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
         editadasOriginalBody.push([
           `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrency(origCreditoDetalhado),
-          formatCurrency(origCreditoTransmissao),
-          formatCurrency(origDebitos),
-          formatCurrency(origCreditoUsado),
-          formatCurrency(origSaldo)
+          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhadoOriginal', origCreditoDetalhado),
+          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissaoOriginal', origCreditoTransmissao),
+          formatCurrencyWithTrace(simulacao, d, 'debitosTotalOriginal', origDebitos),
+          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcompOriginal', origCreditoUsado),
+          formatCurrencyWithTrace(simulacao, d, 'saldoProximaDcompOriginal', origSaldo)
         ]);
 
         editadasNovoBody.push([
           `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrency(novoCreditoDetalhado),
-          formatCurrency(novoCreditoTransmissao),
-          formatCurrency(novoDebitos),
-          formatCurrency(novoCreditoUsado),
-          formatCurrency(novoSaldo)
+          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhado', novoCreditoDetalhado),
+          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissao', novoCreditoTransmissao),
+          formatCurrencyWithTrace(simulacao, d, 'debitosTotal', novoDebitos),
+          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcomp', novoCreditoUsado),
+          formatCurrencyWithTrace(simulacao, d, 'saldoCreditoOriginalCalculado', novoSaldo)
         ]);
       });
 
@@ -535,20 +552,20 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
         colateralOriginalBody.push([
           `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrency(origCreditoDetalhado),
-          formatCurrency(origCreditoTransmissao),
-          formatCurrency(origDebitos),
-          formatCurrency(origCreditoUsado),
-          formatCurrency(origSaldo)
+          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhadoOriginal', origCreditoDetalhado),
+          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissaoOriginal', origCreditoTransmissao),
+          formatCurrencyWithTrace(simulacao, d, 'debitosTotalOriginal', origDebitos),
+          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcompOriginal', origCreditoUsado),
+          formatCurrencyWithTrace(simulacao, d, 'saldoProximaDcompOriginal', origSaldo)
         ]);
 
         colateralNovoBody.push([
           `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrency(novoCreditoDetalhado),
-          formatCurrency(novoCreditoTransmissao),
-          formatCurrency(novoDebitos),
-          formatCurrency(novoCreditoUsado),
-          formatCurrency(novoSaldo)
+          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhado', novoCreditoDetalhado),
+          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissao', novoCreditoTransmissao),
+          formatCurrencyWithTrace(simulacao, d, 'debitosTotal', novoDebitos),
+          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcomp', novoCreditoUsado),
+          formatCurrencyWithTrace(simulacao, d, 'saldoCreditoOriginalCalculado', novoSaldo)
         ]);
       });
 
@@ -609,10 +626,10 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       dcompsHipoteticas.forEach(d => {
         hipoteticaBody.push([
           d.id,
-          formatCurrency(d.valorCreditoDataTransmissao),
-          formatCurrency(d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0)),
-          formatCurrency(d.valorUtilizadoPerdcomp),
-          formatCurrency(d.saldoCreditoOriginalCalculado ?? 0)
+          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissao', d.valorCreditoDataTransmissao),
+          formatCurrencyWithTrace(simulacao, d, 'debitosTotal', d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0)),
+          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcomp', d.valorUtilizadoPerdcomp),
+          formatCurrencyWithTrace(simulacao, d, 'saldoCreditoOriginalCalculado', d.saldoCreditoOriginalCalculado ?? 0)
         ]);
       });
       

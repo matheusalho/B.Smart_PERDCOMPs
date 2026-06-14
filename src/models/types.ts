@@ -1,4 +1,4 @@
-import type { ResultadoAuditavel, FonteNormativa } from '../services/normativo/types';
+import type { ResultadoAuditavel, FonteNormativa, OrigemValor, StatusCalculo } from '../services/normativo/types';
 import type { SelicRastreavelResult } from '../services/normativo/selicService';
 
 export type SituaçãoProcessamento = 
@@ -161,6 +161,21 @@ export interface MetadadosAuditoriaRelatorio {
   dadosAusentes: string[];
 }
 
+export interface RastreabilidadeValorSnapshot {
+  campo: string;
+  rotulo: string;
+  valor: number;
+  origemValor: OrigemValor;
+  metodo: string;
+  statusCalculo?: StatusCalculo;
+  dadosAusentes: string[];
+}
+
+export interface RastreabilidadeDcompSnapshot {
+  dcompId: string;
+  valores: RastreabilidadeValorSnapshot[];
+}
+
 export interface SimulacaoSalva {
   id: string;
   dataSalvamento: Date;
@@ -170,6 +185,7 @@ export interface SimulacaoSalva {
   kpis: KpiSnapshot;
   dcomps: DCOMP[];
   metadadosAuditoria?: MetadadosAuditoriaRelatorio;
+  rastreabilidadeValores?: RastreabilidadeDcompSnapshot[];
 }
 
 export interface Empresa {

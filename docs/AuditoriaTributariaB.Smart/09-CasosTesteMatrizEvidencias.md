@@ -194,6 +194,61 @@ Resultado dos gates:
 - `npm run lint`: aprovado;
 - `npm run build`: aprovado.
 
+## Estado Atual de Automacao - Checkpoint b4c779a / 2026-06-14
+
+Validacao executada em 2026-06-14 antes do Passo 1:
+
+- `npm test`: aprovado com 14 arquivos de teste e 60 testes.
+- `npm run lint`: aprovado.
+- `npm run build`: aprovado, com avisos nao bloqueantes de chunk/plugin timing.
+
+Arquivos de teste atualmente presentes:
+
+| Arquivo de teste | Cobertura principal |
+| --- | --- |
+| `src/services/normativo/__tests__/selicMath.test.ts` | Formula SELIC pura e dados insuficientes. |
+| `src/services/normativo/__tests__/dateRules.test.ts` | Marcos de data, art. 152 e art. 157. |
+| `src/services/normativo/__tests__/creditRules.test.ts` | Classificacao consultiva de tipos de credito. |
+| `src/services/normativo/__tests__/statusRules.test.ts` | Status processual, incluindo `Em analise`. |
+| `src/services/normativo/__tests__/fixturesSelic.test.ts` | Fixtures FX-SEL-001 a FX-SEL-008. |
+| `src/services/normativo/__tests__/cascataRules.test.ts` | Estrategias consultivas de cascata. |
+| `src/services/normativo/__tests__/originalValueGuards.test.ts` | Preservacao de campos `...Original`. |
+| `src/services/normativo/__tests__/selicService.real.test.ts` | `SelicService` com DCOMPs reais importadas. |
+| `src/services/normativo/__tests__/vedacaoCompensacaoService.test.ts` | Alerta DCTFWeb/previdenciario por PA do credito. |
+| `src/services/__tests__/ExcelParser.test.ts` | Parser/importPipeline com planilhas reais e metadados adicionais. |
+| `src/__tests__/storeImportQuality.test.ts` | Preservacao de `ImportQualityReport` no store. |
+| `src/components/__tests__/RastreabilidadePanel.test.tsx` | Painel de rastreabilidade. |
+| `src/utils/__tests__/rastreabilidade.test.ts` | Resumos de rastreabilidade. |
+| `src/utils/__tests__/tooltipMessages.test.ts` | Mensagens consultivas e tooltips. |
+
+## Rodada Passo 1 - Rastreabilidade de Origem/Metodo por Valor - 2026-06-14
+
+Validacao executada:
+
+- `npm test`: aprovado com 15 arquivos de teste e 62 testes.
+- Teste focado: `npm test -- src/__tests__/storeImportQuality.test.ts src/services/__tests__/ReportGeneratorService.test.ts`, aprovado com 2 arquivos e 3 testes.
+
+Novos/alterados:
+
+| Arquivo de teste | Cobertura adicionada |
+| --- | --- |
+| `src/__tests__/storeImportQuality.test.ts` | Snapshot salvo passa a conter `rastreabilidadeValores` por DCOMP, incluindo origem/metodo/status do valor `valorUtilizadoPerdcomp`. |
+| `src/services/__tests__/ReportGeneratorService.test.ts` | PDF passa a renderizar origem/metodo/status nas celulas de valores exportados. |
+| `src/components/__tests__/RastreabilidadePanel.test.tsx` | Cache de parse/recalculo da planilha real e amostra representativa de documentos reais para evitar timeout sem depender de timeout maior. |
+
+Casos cobertos:
+
+- Valor original importado registra `origemValor = importado_rfb` e `metodo = importado_eCAC`.
+- Valor recalculado por SELIC normativa registra `origemValor = calculado_motor`, `metodo = selic_normativa_por_tipo_credito` e `statusCalculo = normativo`.
+- PDF consome `rastreabilidadeValores` do snapshot e imprime metadados junto aos valores monetarios.
+
+Claims atualizados:
+
+- `CT-RET-004` esta implementado e coberto por `statusRules.test.ts` e `tooltipMessages.test.ts`.
+- `CT-IMP-001` esta parcialmente implementado: documentos sem cadeia relacional sao reportados em `ImportQualityReport`.
+- O pipeline de importacao compartilhado por Worker/fallback local esta coberto por `ExcelParser.test.ts`.
+- Vedacao DCTFWeb/previdenciaria existe como alerta consultivo, nao como matriz normativa completa nem bloqueio duro.
+
 ### Rodada de Especificacao de Fixtures SELIC - 2026-06-07
 
 Fonte tecnica de taxa:

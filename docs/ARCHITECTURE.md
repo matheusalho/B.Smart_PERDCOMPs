@@ -1,46 +1,68 @@
 # ARCHITECTURE.md
 
-## Visão Geral da Arquitetura
-A aplicação adota uma arquitetura Client-Side (SPA) construída com React e Zustand. O frontend absorve toda a carga computacional, permitindo que o usuário trabalhe offline ou sem latência de rede em cálculos pesados de compensação tributária. 
-O aplicativo atua como um simulador interativo, traduzindo dados estáticos vindos de relatórios da Receita Federal em uma linha do tempo dinâmica mutável.
+## Visao Geral
 
-## Descrição das Principais Pastas e Módulos
-- `src/App.tsx`: Gerencia a casca principal da aplicação, Navbar e controle de Theme Light/Dark mode.
-- `src/store.ts`: Utiliza o Zustand como única fonte de verdade persistida (`bsmart-perdcomp-storage`). Mantém cadeias, empresa, cadeia selecionada e simulações salvas. Injeta ações como `atualizarDebito`, `editarCreditoOriginal`, `adicionarDcompHipotetica`, `salvarSimulacaoCadeia` e `recalcularCadeia`.
-- `src/services/ExcelParser.ts`: Faz o parse de ArrayBuffer para objetos, resolvendo a linhagem (dependências PAI-FILHA) da árvore através das chaves "Retificado ou Cancelado Por".
-- `src/services/CalculoService.ts`: Módulo matemático desacoplado de dependências do React. Recebe a Cadeia, calcula a evolução do saldo e aplica flags baseando-se no `statusHelper`.
-- `src/services/ReportGeneratorService.ts`: Gera o relatório consolidado em PDF com `jspdf` e `jspdf-autotable`, usando snapshots de simulações salvas e preservando comparativos entre valores originais e novos.
-- `src/workers/excelWorker.ts`: Executa parse e primeiro recálculo fora da main thread durante o upload da planilha.
-- `src/components/TimelineCascata.tsx`: O cérebro da exibição da cadeia, onde as tabelas de cascata são geradas. Depende puramente da leitura da `store`.
-- `src/components/ModalEdicao.tsx`: Abre um portal para edição profunda dos débitos (`valorPrincipal`). Atualiza a `store` quando valores são mudados.
-- `src/components/ModalHipotetica.tsx`: Abre um portal para injeção de PER/DCOMP hipotética com múltiplos débitos simulados.
-- `src/components/DashboardCadeias.tsx`: Exibe o resumo executivo global, filtros de cadeias e seleção da cadeia relacional ativa.
+A aplicacao e uma SPA React/TypeScript com Vite. O processamento principal roda no cliente: upload de planilhas, parsing, reconstrucao de cadeias, recalculo de cascata, rastreabilidade e emissao de PDF. Nao ha backend no estado atual.
 
-## Fluxo de Execução Principal e Dados
-1. **Upload**: Usuário joga a planilha em `UploadComponent`.
-2. **Parseamento**: O arquivo é enviado para `excelWorker.ts`, que chama `ExcelParser.ts` e converte o ArrayBuffer em `CadeiaRelacional[]`.
-3. **Agrupamento & Linhagem**: Ainda no Parse, a função agrupa documentos com base na "Origem" comum, e calcula o `Depth` (profundidade de retificação) usando um `rectifiesMap`. As declarações são niveladas cronologicamente respeitando ancestrais.
-4. **Primeiro Cálculo no Worker**: O worker chama `CalculoService` para recalcular as cadeias importadas antes de retornar os dados para a UI.
-5. **Hydration da Store**: O store salva o resultado da importação já recalculado e persiste o estado no `localStorage`.
-6. **Edição do Usuário**: O usuário abre `ModalEdicao`, muda o valor de um Débito (ex: IRPJ Trimestral reduzido), edita o saldo da raiz ou injeta uma PER/DCOMP hipotética.
-7. **Reatividade**: A ação na store gera uma nova cópia de Cadeia e repassa para o `CalculoService`, que abate a diferença sobre a declaração alterada e propaga os efeitos pelas declarações subsequentes.
-8. **Re-render**: `TimelineCascata.tsx` percebe a mutação do store e plota os novos saldos na tela com cores indicativas.
-9. **Salvamento e Relatório**: O usuário salva uma simulação de cadeia. A store guarda um snapshot em `simulacoesSalvas`, e `ReportGeneratorService.ts` usa esses snapshots para gerar o PDF consolidado.
+O desenho preserva a separacao entre:
 
-## Modelos de Dados Chave (`src/models/types.ts`)
-- **`DebitoOficial`**: Representa um débito unitário do e-CAC. Contém `valorPrincipal` (mutável) e `valorPrincipalOriginal` (referência estática).
-- **`DCOMP`**: Declaração. Possui o seu array de Débitos, as métricas agregadas (ex: `valorTotalCreditoDetalhado`) e Flags do recálculo (`statusCascata` como 'RETIFICAR' ou 'IMPACTADO_BLOQUEADO').
-- **`CadeiaRelacional`**: Container. É a casca que abriga diversas DCOMPs ordenadas sob uma mesma lógica contábil/crédito.
+- dados importados da RFB;
+- valores calculados pelo motor;
+- simulacoes do usuario;
+- valores apenas exibidos/formatados na UI;
+- resultados consultivos/normativos com fonte, metodo, hipoteses e dados ausentes.
 
-## Integrações Externas
-A aplicação é 100% cliente; a principal integração é com o `FileSystem` do dispositivo (upload de XLS). A geração de PDF roda no browser e baixa o arquivo localmente. A formatação do Excel depende da estabilidade do relatório oficial extraído do sistema e-CAC da RFB.
+## Modulos Principais
 
-## Decisões Arquiteturais Relevantes
-- **Zustand em vez de Context API ou Redux**: Redux era overkill e muito boilerplate; Context API era suscetível a renders desnecessários, especialmente com uma tabela de dados densos. Zustand permitiu subscrição limpa.
-- **`CalculoService` Desacoplado**: Lógicas tributárias em React causam loops de dependência cruéis. Separámos o serviço estritamente em um file TS puro de entrada e saída.
-- **Web Worker para Importação**: O parse e primeiro recálculo da planilha são executados fora da main thread para melhorar responsividade durante o upload.
-- **Relatório PDF por Snapshot**: O PDF usa simulações explicitamente salvas pelo usuário, não o estado transitório da cadeia atual, para preservar a intenção de exportação e a auditabilidade.
+- `src/App.tsx`: casca da aplicacao, tema claro/escuro e composicao das telas principais.
+- `src/store.ts`: store Zustand persistida via `idb-keyval`/IndexedDB na chave `bsmart-perdcomp-storage`, com fallback em memoria. Mantem empresa, cadeias, cadeia selecionada, simulacoes salvas e `ImportQualityReport`.
+- `src/services/ExcelParser.ts`: parse de planilhas e-CAC, montagem de cadeias, preservacao de metadados importados, classificacoes consultivas e relatorio de qualidade.
+- `src/services/importPipeline.ts`: pipeline compartilhado entre Worker e fallback local de upload.
+- `src/workers/excelWorker.ts`: executa o pipeline de importacao fora da main thread.
+- `src/services/CalculoService.ts`: recalculo da cascata. Usa `calcularSelicRastreavel(...)` e `selicProvider` quando ha dados suficientes; preserva fallback historico quando nao ha resultado normativo.
+- `src/services/normativo/`: camada consultiva/normativa pura para tipos de credito, status, datas, SELIC, cascata, vedacoes e guards de `...Original`.
+- `src/services/ReportGeneratorService.ts`: geracao de PDF consolidado, incluindo premissas/metodologia, alertas, comparativos e simulacoes.
+- `src/components/TimelineCascata.tsx`: superficie principal de leitura da cadeia, filtros, KPIs, tabela, selecao de DCOMP e integracao do painel de rastreabilidade.
+- `src/components/RastreabilidadePanel.tsx`: painel de dados importados e rastreabilidade da PER/DCOMP selecionada.
+- `src/components/StatusBadge.tsx`: badge padronizado com tons e tooltips.
+- `src/components/ModalEdicao.tsx`: edicao/visualizacao de debitos e indicadores de qualidade SELIC.
+- `src/components/ModalHipotetica.tsx`: criacao de PER/DCOMP hipotetica.
 
-## Alternativas Evitadas e Porquê
-- **Backend Node.js**: Evitado para simplificar o MVP. Dado que as empresas lidam com dados fiscais sensíveis, rodar tudo localmente no browser elimina dores de cabeça de conformidade (LGPD) num primeiro momento.
-- **Mutações Diretas (`immer`)**: Evitamos e fizemos recriação superficial padrão (spread operator) nas listagens. Immer poderia ser implementado, mas como as árvores de objeto têm pouca profundidade no frontend, seria dependência desnecessária.
+## Fluxo de Dados
+
+1. O usuario faz upload de uma planilha `.xlsx` em `UploadComponent`.
+2. A tela cria `excelWorker.ts` e envia o `ArrayBuffer`.
+3. O Worker chama `processExcelBuffer(...)`, que executa parser e primeiro recalculo.
+4. Se o Worker falhar, `UploadComponent` encerra o Worker e tenta o mesmo pipeline no thread principal.
+5. O store recebe cadeias, empresa e `ImportQualityReport`, seleciona a primeira cadeia e persiste o estado em IndexedDB.
+6. `TimelineCascata` renderiza KPIs, tabela, alertas, badges e `RastreabilidadePanel`.
+7. Ao editar debitos ou criar DCOMP hipotetica, a store cria copia da cadeia e chama `recalcularCadeia`.
+8. `CalculoService` preserva `...Original`, usa SELIC normativa apenas quando disponivel e identifica fallback/insuficiencia quando necessario.
+9. Simulacoes salvas entram em `simulacoesSalvas`; o PDF e gerado a partir desses snapshots, nao do estado transitÃ³rio em edicao.
+
+## Persistencia
+
+Persistencia atual:
+
+- chave: `bsmart-perdcomp-storage`;
+- engine preferencial: IndexedDB via `idb-keyval`;
+- fallback: memoria quando `globalThis.indexedDB` nao existe.
+
+Limite ainda aberto: nao ha versionamento/migracao formal do schema persistido. Mudancas estruturais futuras devem prever migracao ou limpeza controlada.
+
+## Decisoes Arquiteturais Relevantes
+
+- **Client-side first:** evita upload de dados fiscais sensiveis para backend no MVP.
+- **Zustand:** mantem store simples e de baixo boilerplate.
+- **IndexedDB:** substitui dependencia pratica de `localStorage` para volumes grandes.
+- **Web Worker com fallback local:** reduz bloqueio de UI sem transformar falha de Worker em falha fatal de importacao.
+- **Camada normativa pura:** regras consultivas/normativas ficam em `src/services/normativo/`, nao em componentes React.
+- **PDF por snapshot salvo:** exportacao reflete simulacoes explicitamente salvas pelo usuario.
+- **Campos `...Original` imutaveis:** simulacoes e calculos usam campos separados.
+
+## Riscos e Fronteiras
+
+- Recalculo pos-edicao ainda roda na main thread.
+- Catalogos consultivos nao sao bloqueios duros sem validacao normativa adicional.
+- Credito judicial sem componentes segue como `dados_insuficientes` para calculo normativo.
+- Exportacao Excel permanece fora do comportamento atual.

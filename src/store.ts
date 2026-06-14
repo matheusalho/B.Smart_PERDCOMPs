@@ -35,6 +35,7 @@ const idbStorage: StateStorage = {
 import { format } from 'date-fns';
 import type { SimulacaoState, CadeiaRelacional, DCOMP, DebitoOficial, Empresa } from './models/types';
 import { recalcularCadeia } from './services/CalculoService';
+import { criarRastreabilidadeValoresSimulacao } from './services/valueTraceability';
 
 export const useStore = create<SimulacaoState>()(
   persist(
@@ -84,6 +85,7 @@ export const useStore = create<SimulacaoState>()(
       tipoCredito: cadeia.tipoCredito,
       kpis,
       metadadosAuditoria,
+      rastreabilidadeValores: criarRastreabilidadeValoresSimulacao(cadeia.dcomps),
       // Fazendo deep copy simplificada para snapshot das dcomps
       dcomps: JSON.parse(JSON.stringify(cadeia.dcomps))
     };

@@ -162,7 +162,9 @@ Campos prioritarios que precisam desse metadado:
 - Sobrescrever campo original durante edicao manual.
 - Usar campo original como fallback e perder distincao entre importado e calculado.
 - Relatorio nao explicar quando um valor e simulado.
-- Persistencia em `localStorage` hidratar estruturas antigas sem schema versionado.
+- Persistencia em IndexedDB via `idb-keyval` hidratar estruturas antigas sem schema versionado.
+
+Atualizacao 2026-06-14: o risco de cota do `localStorage` foi mitigado com IndexedDB, mas o risco de schema antigo sem migracao permanece.
 - Novos campos de SELIC serem adicionados sem distinguir origem RFB, dado complementar do usuario e resultado calculado.
 - Aplicar art. 157 sobrescrevendo data importada, em vez de criar data calculada de valoracao.
 
