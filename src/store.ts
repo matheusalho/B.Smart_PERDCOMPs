@@ -51,7 +51,12 @@ export const useStore = create<SimulacaoState>()(
       // Se vier do worker, já está recalculada, o que salva bloqueio da UI
       cadeiasMap[c.id] = isRecalculated ? c : recalcularCadeia(c);
     });
-    set({ cadeias: cadeiasMap, empresa, importQualityReport: importQualityReport ?? null });
+    set({
+      cadeias: cadeiasMap,
+      empresa,
+      cadeiaSelecionadaId: cadeiasList[0]?.id ?? null,
+      importQualityReport: importQualityReport ?? null,
+    });
   },
 
   selecionarCadeia: (id: string) => {

@@ -167,7 +167,7 @@ function readRealSheet(fileName: string): ArrayBuffer {
 
 function latestSheetFile(): string {
   return readdirSync(sheetsDir)
-    .filter((file) => file.toLowerCase().endsWith('.xlsx'))
+    .filter((file) => file.toLowerCase().endsWith('.xlsx') && !file.startsWith('~$'))
     .map((file) => ({
       file,
       mtime: statSync(resolve(sheetsDir, file)).mtimeMs,

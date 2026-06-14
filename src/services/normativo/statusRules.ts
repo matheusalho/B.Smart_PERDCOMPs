@@ -60,6 +60,15 @@ export function classificarStatusProcessamento(
     });
   }
 
+  if (statusNormalizado.includes('em analise')) {
+    return criarResultado(input, statusNormalizado, tipoDocumentoNormalizado, {
+      vigenciaCascata: 'vigente',
+      editabilidadeSimulacao: 'editavel',
+      cancelabilidade: 'cancelavel',
+      motivos: ['documento_em_analise_vigente_editavel'],
+    });
+  }
+
   if (
     statusNormalizado.includes('cancelado') ||
     statusNormalizado.includes('retificado')

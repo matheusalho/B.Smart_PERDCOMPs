@@ -3,10 +3,11 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { parseExcelFile } from '../ExcelParser';
+import { processExcelBuffer } from '../importPipeline';
 
 const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
 const sheetFiles = readdirSync(sheetsDir)
-  .filter((file) => file.toLowerCase().endsWith('.xlsx'))
+  .filter((file) => file.toLowerCase().endsWith('.xlsx') && !file.startsWith('~$'))
   .sort();
 
 describe('ExcelParser - planilhas reais e-CAC', () => {
@@ -51,6 +52,37 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
     expect(dcomp?.valorUtilizadoPerdcompOriginal).toBe(607590.62);
   });
 
+  it('transporta metadados de status, DARF e lastro de pagamento para rastreabilidade', () => {
+    const dcomp = findDcomp(latestResult.cadeias, '09896.37478.250424.1.3.24-6461');
+
+    expect(dcomp?.situacaoDetalhada).toBe(
+      'Análise concluída, com emissão de despacho decisório.',
+    );
+    expect(dcomp?.metadadosCreditoImportado?.competenciaCredito).toBe('12/2021');
+    expect(dcomp?.metadadosCreditoImportado?.tipoCompetenciaCredito).toBe('DATA');
+    expect(dcomp?.metadadosCreditoImportado?.numeroPagamento).toBe(
+      '07.16.22018.0020381-1',
+    );
+    expect(formatLocalDate(dcomp?.metadadosCreditoImportado?.dataArrecadacaoCredito)).toBe(
+      '20/01/2022',
+    );
+    expect(dcomp?.metadadosCreditoImportado?.codigoReceitaCredito).toBe('1138');
+  });
+
+  it('transporta metadados de titularidade, sucessao e recibos dos debitos', () => {
+    const dcomp = findDcomp(latestResult.cadeias, '13941.91673.180923.1.7.24-0207');
+    const debito = dcomp?.debitos.find((item) => item.codigoReceita === '1191-01');
+
+    expect(debito?.cnpjTransmissorDcomp).toBe('61486650000183');
+    expect(debito?.cnpjDetentorCredito).toBe('83933275000105');
+    expect(debito?.cnpjDebito).toBe('83933275000105');
+    expect(debito?.debitoSucedida).toBe('SIM');
+    expect(debito?.debitoControladoEmProcesso).toBe('NÃO');
+    expect(debito?.numeroReciboTransmissaoDctf).toBe('50000163079606');
+    expect(debito?.numeroReciboPerDcomp).toBe('1573792095');
+    expect(debito?.categoriaDctf).toBe('Geral');
+  });
+
   it('preserva o dia civil das datas de transmissao importadas do Excel', () => {
     const dcomp = findDcomp(latestResult.cadeias, '06251.86776.210720.1.7.02-1771');
 
@@ -74,8 +106,11 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
         expect.stringContaining('VED-CRED-JUD-LIMITE'),
       ]),
     );
+    expect(dcompJudicial?.statusProcessamentoConsultivo?.vigenciaCascata).toBe(
+      'vigente',
+    );
     expect(dcompJudicial?.statusProcessamentoConsultivo?.editabilidadeSimulacao).toBe(
-      'indeterminado',
+      'editavel',
     );
 
     expect(dcompHomologada?.statusProcessamentoConsultivo?.vigenciaCascata).toBe(
@@ -83,6 +118,19 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
     );
     expect(dcompHomologada?.statusProcessamentoConsultivo?.editabilidadeSimulacao).toBe(
       'bloqueado',
+    );
+  });
+
+  it('executa o pipeline usado pelo worker com a planilha real mais recente', () => {
+    const { cadeias: cadeiasRecalculadas, empresa, importQualityReport } =
+      processExcelBuffer(readRealSheet(latestSheetFile()));
+
+    expect(cadeiasRecalculadas).toHaveLength(latestResult.cadeias.length);
+    expect(totalDcomps(cadeiasRecalculadas)).toBe(totalDcomps(latestResult.cadeias));
+    expect(totalDebitos(cadeiasRecalculadas)).toBe(totalDebitos(latestResult.cadeias));
+    expect(empresa).toEqual(latestResult.empresa);
+    expect(importQualityReport.dcompsCarregadas).toBe(
+      latestResult.importQualityReport.dcompsCarregadas,
     );
   });
 });

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
 import type { DCOMP, DebitoOficial } from '../models/types';
 import { useStore } from '../store';
 import codigosReceitaData from '../data/CodigosDeReceita.json';
@@ -135,6 +136,28 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose, readOn
     });
   }, [debitosEdit, buscaReceita, filtroOrigem]);
 
+  const selicStatusLabel = dcomp.resultadoSelic?.statusCalculo === 'normativo'
+    ? 'Cálculo normativo'
+    : dcomp.resultadoSelic?.statusCalculo === 'estimativa_historica'
+      ? 'Estimativa histórica'
+      : 'Dados insuficientes';
+  const selicTaxaLabel = dcomp.resultadoSelic?.valor?.taxaSelicDecimal !== undefined
+    ? ` · Taxa ${(dcomp.resultadoSelic.valor.taxaSelicDecimal * 100).toFixed(4)}%`
+    : '';
+  const selicTooltip = dcomp.resultadoSelic
+    ? [
+        'Fontes Normativas:',
+        ...(dcomp.resultadoSelic.fontesNormativas.length > 0
+          ? dcomp.resultadoSelic.fontesNormativas.map((fonte) => fonte.resumo)
+          : ['Não informadas.']),
+      ].join(' ')
+    : undefined;
+  const SelicIcon = dcomp.resultadoSelic?.statusCalculo === 'normativo'
+    ? CheckCircle2
+    : dcomp.resultadoSelic?.statusCalculo === 'estimativa_historica'
+      ? AlertTriangle
+      : XCircle;
+
   return createPortal(
     <div style={{
       position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -142,10 +165,41 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose, readOn
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999
     }}>
       <div className="card-glass" style={{ width: '95vw', maxWidth: '1700px', height: '85vh', display: 'flex', flexDirection: 'column', padding: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{readOnly ? 'Visualização de Débitos' : 'Edição de Débitos'}</h2>
-            <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem', marginTop: '0.25rem' }}>DCOMP: {dcomp.id} {dcomp.numeroRetificador ? `| Retificadora: ${dcomp.numeroRetificador}` : ''}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexShrink: 0, gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.65rem 0.75rem', minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: '1.5rem', flex: '0 0 auto' }}>{readOnly ? 'Visualização de Débitos' : 'Edição de Débitos'}</h2>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', maxWidth: 'min(420px, 100%)', padding: '0.32rem 0.55rem', borderRadius: '8px', color: 'var(--color-primary)', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '0.76rem', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+              <Info size={14} aria-hidden="true" />
+              <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{readOnly ? 'Visualizando' : 'Editando'} {dcomp.id}</strong>
+            </span>
+            {dcomp.resultadoSelic && (
+              <span
+                className="tooltip-host"
+                data-tooltip={selicTooltip}
+                tabIndex={0}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  maxWidth: 'min(360px, 100%)',
+                  padding: '0.32rem 0.55rem',
+                  borderRadius: '8px',
+                  color: dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'var(--color-success)' :
+                         dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'var(--color-warning)' : 'var(--color-danger)',
+                  backgroundColor: dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'rgba(16, 185, 129, 0.1)' :
+                                   dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                  border: `1px solid ${dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'rgba(16, 185, 129, 0.3)' :
+                                      dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  fontSize: '0.76rem',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <SelicIcon size={14} aria-hidden="true" />
+                <strong>Qualidade SELIC</strong>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{selicStatusLabel}{selicTaxaLabel}</span>
+              </span>
+            )}
           </div>
           <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: '1.5rem', padding: '0.2rem 0.5rem', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&times;</button>
         </div>
@@ -180,77 +234,7 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose, readOn
           return null;
         })()}
 
-        {!readOnly && (
-          <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '1rem 1.5rem', borderRadius: '8px', marginBottom: '1.5rem', color: 'var(--color-primary)', display: 'flex', gap: '0.75rem', alignItems: 'center', flexShrink: 0, border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-            <span style={{ fontSize: '1.25rem' }}>ℹ️</span>
-            <span style={{ fontSize: '0.9rem' }}>
-              Editando <strong>{dcomp.id}</strong>. Ao alterar o <strong>Valor Principal</strong>, multa e juros serão recalculados proporcionalmente.
-            </span>
-          </div>
-        )}
-
-        {/* Qualidade da Auditoria SELIC Panel */}
-        {dcomp.resultadoSelic && (
-          <div style={{ 
-            backgroundColor: dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'rgba(16, 185, 129, 0.1)' : 
-                             dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
-            padding: '1rem 1.5rem', 
-            borderRadius: '8px', 
-            marginBottom: '1.5rem', 
-            color: dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'var(--color-success)' : 
-                   dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'var(--color-warning)' : 'var(--color-danger)', 
-            display: 'flex', 
-            flexDirection: 'column',
-            gap: '0.5rem', 
-            flexShrink: 0, 
-            border: `1px solid ${dcomp.resultadoSelic.statusCalculo === 'normativo' ? 'rgba(16, 185, 129, 0.3)' : 
-                                  dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` 
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-              {dcomp.resultadoSelic.statusCalculo === 'normativo' ? '✅ Qualidade SELIC: Cálculo Normativo' : 
-               dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' ? '⚠️ Qualidade SELIC: Estimativa Histórica' : '❌ Qualidade SELIC: Dados Insuficientes'}
-            </div>
-            
-            <div style={{ fontSize: '0.85rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <div>
-                <strong>Fontes Normativas:</strong> 
-                <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
-                  {dcomp.resultadoSelic.fontesNormativas.map((f, i) => <li key={i}>{f.resumo}</li>)}
-                </ul>
-              </div>
-              <div>
-                <div><strong>Status:</strong> {dcomp.resultadoSelic.statusCalculo.toUpperCase()}</div>
-                {dcomp.resultadoSelic.valor?.taxaSelicDecimal !== undefined && (
-                  <div><strong>Taxa Selic Injetada:</strong> {(dcomp.resultadoSelic.valor.taxaSelicDecimal * 100).toFixed(4)}%</div>
-                )}
-              </div>
-            </div>
-            
-            {dcomp.resultadoSelic.alertas && dcomp.resultadoSelic.alertas.length > 0 && (
-              <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                <strong>Observações/Alertas:</strong>
-                <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
-                  {dcomp.resultadoSelic.alertas.map((alerta, idx) => (
-                    <li key={idx}>{alerta}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {dcomp.resultadoSelic.dadosAusentes && dcomp.resultadoSelic.dadosAusentes.length > 0 && (
-              <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                <strong>Dados Ausentes que Impedem o Cálculo Exato:</strong>
-                <ul style={{ fontSize: '0.8rem', marginTop: '0.25rem', paddingLeft: '1.5rem', color: 'inherit' }}>
-                  {dcomp.resultadoSelic.dadosAusentes.map((motivo, idx) => (
-                    <li key={idx}>{motivo}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={{ marginBottom: '1.5rem', flexShrink: 0, display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ marginBottom: '1rem', flexShrink: 0, display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <input 
             type="text" 
             placeholder="🔍 Filtrar por código de receita..." 
@@ -299,7 +283,7 @@ export const ModalEdicao: React.FC<ModalEdicaoProps> = ({ dcomp, onClose, readOn
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                           <span style={{ fontWeight: 600 }}>{deb.codigoReceita}</span>
                           {(() => {
-                            const alertas = verificarVedacaoDebito(deb, dcomp.dataTransmissaoOriginal || new Date());
+                            const alertas = verificarVedacaoDebito(deb, dcomp.dataTransmissaoOriginal || new Date(), dcomp.periodoApuracaoCredito);
                             if (alertas.length > 0) {
                               return (
                                 <span style={{ cursor: 'help' }} title={alertas.map(a => a.mensagem).join(' | ')}>⚠️</span>

@@ -33,17 +33,42 @@ export interface DebitoOficial {
   valorTotalOriginal: number;
   // Campos extras mapeados se houver:
   cnpjDebito?: string;
+  cnpjTransmissorDcomp?: string;
+  nomeEmpresarial?: string;
+  apelido?: string;
+  periodoApuracaoCredito?: string;
+  periodicidadeCredito?: string;
+  inicioPeriodoApuracaoCredito?: string;
+  fimPeriodoApuracaoCredito?: string;
+  cnpjDetentorCredito?: string;
+  totalCreditoOriginalUtilizado?: number;
+  periodicidadeDebito?: string;
+  cnpjPrestador?: string;
+  cnoObra?: string;
+  debitoControladoEmProcesso?: string;
+  numeroReciboTransmissaoDctf?: string;
+  numeroReciboPerDcomp?: string;
+  categoriaDctf?: string;
+  dataTransmissaoDctf?: string;
+  debitoSucedida?: string;
+  idCadeiaRelacionalImportado?: string;
+  cursorValue?: string;
 }
 
 export interface MetadadosCreditoImportado {
+  cnpjOrigem?: string;
+  dataExtracao?: Date;
   dataArrecadacaoCredito?: Date;
   competenciaCredito?: string;
   tipoCompetenciaCredito?: string;
   numeroPagamento?: string;
   periodoApuracaoDarf?: string;
+  grupoTributo?: string;
+  codigoReceitaCredito?: string;
   processoJudicial?: string;
   processoHabilitacao?: string;
   processoAdministrativo?: string;
+  origemDiscussao?: string;
   dataProtocoloPerOriginal?: Date;
   numeroPerOriginal?: string;
   origemDataProtocoloPerOriginal?: 'importada' | 'resolvida_por_linhagem' | 'informada_usuario';
@@ -69,6 +94,7 @@ export interface DCOMP {
   dataTransmissao: Date; // Data real de transmissão (pode ser retificadora)
   tipoDocumento: string; // Declaração de Compensação, etc.
   situacao: SituaçãoProcessamento;
+  situacaoDetalhada?: string;
   indicadorCredito: string; // Se 1 ou 2 etc
   tipoCredito: string;
   detentorCredito: string;

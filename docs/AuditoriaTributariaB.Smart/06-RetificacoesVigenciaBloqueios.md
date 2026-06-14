@@ -38,6 +38,8 @@ Regras e evidencias normativas confirmadas nesta rodada:
 - O cancelamento e irreversivel e eventuais debitos compensados podem ser cobrados pela RFB.
 - O proprio manual recomenda avaliar retificacao em vez de cancelamento.
 - O PER/DCOMP nao pode ser cancelado quando ja tiver sido analisado pela RFB ou quando o contribuinte tiver sido intimado para apresentar documentos ou esclarecimentos.
+- Fonte oficial complementar: pagina RFB `Retificacao de Documentos`, atualizada em 20/08/2020, registra que o PER/DCOMP Web somente pode ser retificado se estiver pendente de decisao administrativa na data do pedido de retificacao.
+- Diretriz normativa do usuario responsavel pelo projeto, registrada em 2026-06-13: PER/DCOMPs em situacao `Em analise` representam documentos pendentes de decisao administrativa, vigentes e editaveis.
 - As vedacoes de DCOMP para determinados debitos, como DAU, debito parcelado, Simples Nacional e estimativas de IRPJ/CSLL, sao materia separada de status de processamento: devem ser modeladas como alerta/bloqueio normativo consultivo, nao dentro de `isVigente`.
 
 Perfil real de status na aba `Processamento PERDCOMP`:
@@ -178,7 +180,7 @@ Regras preliminares, ainda sem implementacao:
 - `Retificado`, `Cancelado`, `Pedido de cancelamento deferido` e `Nao admitido` devem ser nao vigentes para consumo ativo.
 - Pedido de cancelamento deve ser identificado por tipo normalizado (`Pedido Cancelamento`, `Pedido de Cancelamento`) e nao apenas por um unico padrao numerico.
 - Status analisado, homologado, despacho decisorio e discussao administrativa devem bloquear edicao/cancelamento, mas podem continuar compondo historico se nao forem nao vigentes.
-- `Em analise` deve ser tratado com cautela: nao e automaticamente nao vigente, mas pode ter restricoes normativas externas se houver intimacao ou procedimento especifico nao visivel na planilha.
+- `Em analise` deve ser classificado na camada consultiva como vigente e editavel. Hipotese: enquanto a PER/DCOMP permanece em analise, ela nao foi substituida, cancelada, nao admitida, homologada, analisada conclusivamente ou bloqueada por discussao administrativa. Impacto: o painel de rastreabilidade deve exibir `vigente` e `editavel`, sem alterar as regras de cascata. Caso de validacao: `statusRules.test.ts` deve cobrir `Em analise` com `vigenciaCascata = vigente`, `editabilidadeSimulacao = editavel` e motivo `documento_em_analise_vigente_editavel`.
 - Vedacoes legais de credito/debito devem ser avaliadas por catalogo proprio, com fonte e campo de entrada, sem contaminar a classificacao de vigencia.
 
 ## Criterios de Aceite
@@ -187,4 +189,5 @@ Regras preliminares, ainda sem implementacao:
 - `isVigente` e `isBloqueado` ficam documentados.
 - UI e relatorio usam a mesma classificacao.
 - Casos reais `Pedido de cancelamento deferido | Pedido Cancelamento` e `Nao admitido | Decl. Compensacao` sao classificados corretamente por normalizacao.
+- `Em analise | Decl. Compensacao` e classificado consultivamente como vigente e editavel, preservando as regras existentes de cascata.
 - O relatorio explica se o documento e nao vigente, bloqueado para edicao/cancelamento ou apenas sujeito a alerta normativo.

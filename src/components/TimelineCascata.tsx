@@ -11,8 +11,16 @@ import { ModalEdicao } from './ModalEdicao';
 import { ModalHipotetica } from './ModalHipotetica';
 import { CascataKpis } from './CascataKpis';
 import { CascataFilters } from './CascataFilters';
+import { RastreabilidadePanel } from './RastreabilidadePanel';
+import { StatusBadge } from './StatusBadge';
 import { Settings, Pencil, Trash, Eye } from 'lucide-react';
 import { formatCurrency } from '../utils/formatters';
+import {
+  formatarListaMotivosStatus,
+  getTooltipPapelDocumento,
+  getTooltipSelic,
+  getTooltipStatusCascata,
+} from '../utils/tooltipMessages';
 
 export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia }) => {
   const formatDate = (date: Date) => format(date, 'dd/MM/yyyy', { locale: ptBR });
@@ -20,9 +28,11 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
   const [modalHipoteticaAberta, setModalHipoteticaAberta] = useState(false);
   const [editandoRaiz, setEditandoRaiz] = useState(false);
   const [valorRaizEdit, setValorRaizEdit] = useState('');
+  const [dcompRastreabilidadeId, setDcompRastreabilidadeId] = useState<string | null>(null);
   
   const editarCreditoOriginal = useStore(state => state.editarCreditoOriginal);
   const salvarSimulacaoCadeia = useStore(state => state.salvarSimulacaoCadeia);
+  const empresa = useStore(state => state.empresa);
 
   // Calcula KPIs
   const dcompInicialVigente = cadeia.dcomps.find(d => isVigente(d.situacao, d.tipoDocumento, d.id));
@@ -204,16 +214,24 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
     return verificarVedacaoCredito({ tipoCredito: cadeia.tipoCredito });
   }, [cadeia.tipoCredito]);
 
+  const dcompRastreabilidade = useMemo(() => (
+    cadeia.dcomps.find(d => d.id === dcompRastreabilidadeId) ?? dcompInicialVigente ?? cadeia.dcomps[0]
+  ), [cadeia.dcomps, dcompInicialVigente, dcompRastreabilidadeId]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
           <h2 style={{ margin: 0 }}>Simulador de Cascata - {cadeia.tipoCredito}</h2>
           {classificacaoCredito.alertas.length > 0 && (
-            <span className="status-led status-danger" data-tooltip={classificacaoCredito.alertas.join(' | ')}>RESTRIÇÃO NORMATIVA</span>
+            <StatusBadge tone="danger" tooltip={classificacaoCredito.alertas.join(' ')}>
+              RESTRIÇÃO NORMATIVA
+            </StatusBadge>
           )}
           {vedacoesCredito.length > 0 && (
-            <span className="status-led status-danger" data-tooltip={vedacoesCredito.map(v => v.mensagem).join(' | ')}>⚠️ VEDAÇÃO DE CRÉDITO</span>
+            <StatusBadge tone="danger" tooltip={vedacoesCredito.map(v => v.mensagem).join(' ')}>
+              ⚠️ VEDAÇÃO DE CRÉDITO
+            </StatusBadge>
           )}
         </div>
         
@@ -228,6 +246,14 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
           docsRetificadosUsuario={docsRetificadosUsuario}
           docsARetificar={docsARetificar}
         />
+
+        {dcompRastreabilidade && (
+          <RastreabilidadePanel
+            cadeia={cadeia}
+            dcomp={dcompRastreabilidade}
+            empresa={empresa}
+          />
+        )}
       </div>
 
       {/* Âncora invisível para o Tour Guiado */}
@@ -280,36 +306,46 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                   tipoDocumento: dcomp.tipoDocumento || 'desconhecido'
                 });
                 const alertasStatus = statusClassificado.motivos.filter(m => m !== 'documento_analisado_ou_em_discussao' && m !== 'documento_nao_vigente');
-
-                const getTooltip = (status: string, bloq: boolean, vig: boolean) => {
-                  if (status === 'RETIFICAR') return 'Consome mais crédito que o saldo disponível.';
-                  if (status === 'EDITADO') return 'Ajustado pelo usuário nesta simulação.';
-                  if (bloq) return 'Bloqueado: Situação processual na RFB impede retificação.';
-                  if (!vig) return 'Não Vigente: Já retificada por versão posterior.';
-                  return 'OK: Documento ativo e saldos consistentes.';
-                };
+                const tooltipStatusCascata = getTooltipStatusCascata(dcomp, statusClassificado, vigente, bloqueado);
+                const tooltipSaldo = !vigente
+                  ? 'Saldo original não editável porque a PER/DCOMP não está vigente.'
+                  : bloqueado
+                    ? 'Saldo original não editável porque a PER/DCOMP está bloqueada por situação processual na RFB.'
+                    : 'Editar saldo original da PER/DCOMP raiz preservando os valores originais importados.';
+                const tooltipDebitos = bloqueado
+                  ? 'Visualizar débitos compensados. Edição bloqueada pela situação processual da PER/DCOMP.'
+                  : !vigente
+                    ? 'Visualizar débitos compensados. Edição indisponível porque a PER/DCOMP não está vigente.'
+                    : 'Editar débitos compensados nesta PER/DCOMP. Os valores originais importados seguem preservados.';
 
                 return (
                   <React.Fragment key={dcomp.id}>
-                    <tr style={{ opacity: vigente ? 1 : 0.6 }}>
+                    <tr
+                      className={`cascade-row ${dcompRastreabilidade?.id === dcomp.id ? 'cascade-row--selected' : ''}`}
+                      style={{ opacity: vigente ? 1 : 0.6 }}
+                      tabIndex={0}
+                      aria-selected={dcompRastreabilidade?.id === dcomp.id}
+                      onClick={() => setDcompRastreabilidadeId(dcomp.id)}
+                      onFocus={() => setDcompRastreabilidadeId(dcomp.id)}
+                    >
                       <td>
                         {dcomp.statusCascata === 'EDITADO_E_RETIFICAR' ? (
                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'center' }}>
-                             <span className="status-led status-danger" data-tooltip={getTooltip('RETIFICAR', bloqueado, vigente)}>A RETIFICAR</span>
-                             <span className="status-led status-success" data-tooltip={getTooltip('EDITADO', bloqueado, vigente)}>EDITADO</span>
+                             <StatusBadge tone="danger" tooltip={tooltipStatusCascata}>A RETIFICAR</StatusBadge>
+                             <StatusBadge tone="success" tooltip={tooltipStatusCascata}>EDITADO</StatusBadge>
                            </div>
                         ) : dcomp.statusCascata === 'RETIFICAR' ? (
-                           <span className="status-led status-danger" data-tooltip={getTooltip('RETIFICAR', bloqueado, vigente)}>A RETIFICAR</span>
+                           <StatusBadge tone="danger" tooltip={tooltipStatusCascata}>A RETIFICAR</StatusBadge>
                         ) : dcomp.statusCascata === 'IMPACTADO_BLOQUEADO' ? (
-                           <span className="status-led status-danger" data-tooltip="Falta crédito, mas a declaração está Bloqueada para retificação na RFB.">BLOQUEADO</span>
+                           <StatusBadge tone="danger" tooltip={tooltipStatusCascata}>BLOQUEADO</StatusBadge>
                         ) : dcomp.statusCascata === 'EDITADO' ? (
-                           <span className="status-led status-success" data-tooltip={getTooltip('EDITADO', bloqueado, vigente)}>EDITADO</span>
+                           <StatusBadge tone="success" tooltip={tooltipStatusCascata}>EDITADO</StatusBadge>
                         ) : !vigente ? (
-                           <span className="status-led status-muted" data-tooltip={getTooltip('NAO_VIGENTE', bloqueado, false)}>Não vigente</span>
+                           <StatusBadge tone="muted" tooltip={tooltipStatusCascata}>Não vigente</StatusBadge>
                         ) : bloqueado ? (
-                           <span className="status-led status-danger" data-tooltip={getTooltip('BLOQ', true, vigente)}>BLOQUEADO</span>
+                           <StatusBadge tone="danger" tooltip={tooltipStatusCascata}>BLOQUEADO</StatusBadge>
                         ) : (
-                           <span className="status-led status-success" data-tooltip={getTooltip('OK', bloqueado, vigente)}>OK</span>
+                           <StatusBadge tone="success" tooltip={tooltipStatusCascata}>OK</StatusBadge>
                         )}
                       </td>
                       <td>{formatDate(new Date(dcomp.dataTransmissao))}</td>
@@ -320,9 +356,21 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                             <span className="font-mono">{dcomp.id}</span>
                             {dcomp.indicadorCredito !== 'Hipotético' && (
                               (!dcomp.numeroDcompDetalhamento || dcomp.numeroDcompDetalhamento === dcomp.id) ? (
-                                <span className="status-led status-success" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}>DETALHADOR</span>
+                                <StatusBadge
+                                  tone="success"
+                                  style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}
+                                  tooltip={getTooltipPapelDocumento(dcomp)}
+                                >
+                                  DETALHADOR
+                                </StatusBadge>
                               ) : (
-                                <span className="status-led status-muted" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}>CONSUMIDOR</span>
+                                <StatusBadge
+                                  tone="muted"
+                                  style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}
+                                  tooltip={getTooltipPapelDocumento(dcomp)}
+                                >
+                                  CONSUMIDOR
+                                </StatusBadge>
                               )
                             )}
                           </div>
@@ -342,9 +390,13 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                           })()}
                           
                           {alertasStatus.length > 0 && (
-                            <span className="status-led status-warning" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip={alertasStatus.join(' | ')}>
+                            <StatusBadge
+                              tone="warning"
+                              style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}
+                              tooltip={formatarListaMotivosStatus(alertasStatus)}
+                            >
                               ATENÇÃO (STATUS)
-                            </span>
+                            </StatusBadge>
                           )}
                           
                           {isPedidoCancelamento(dcomp.id, dcomp.tipoDocumento) && (() => {
@@ -432,21 +484,33 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                              <div style={{ fontWeight: 600 }}>{formatCurrency(valorCreditoOriginalUsado)}</div>
                            )}
                            
-                           {/* Badge Consultivo da Auditoria SELIC */}
-                           {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'normativo' && (
-                             <span className="status-led status-success" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip="Cálculo Normativo Verificado">
+                            {/* Badge Consultivo da Auditoria SELIC */}
+                            {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'normativo' && (
+                             <StatusBadge
+                               tone="success"
+                               style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}
+                               tooltip={getTooltipSelic(dcomp.resultadoSelic)}
+                             >
                                ✓ SELIC Exata
-                             </span>
+                             </StatusBadge>
                            )}
                            {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'estimativa_historica' && (
-                             <span className="status-led status-warning" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip="Estimativa Histórica (Baseada na RFB)">
+                             <StatusBadge
+                               tone="warning"
+                               style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}
+                               tooltip={getTooltipSelic(dcomp.resultadoSelic)}
+                             >
                                ⚠️ Estimativa
-                             </span>
+                             </StatusBadge>
                            )}
                            {dcomp.resultadoSelic && dcomp.resultadoSelic.statusCalculo === 'dados_insuficientes' && (
-                             <span className="status-led status-danger" style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }} data-tooltip="Dados Insuficientes para Cálculo Seguro">
+                             <StatusBadge
+                               tone="danger"
+                               style={{ padding: '0.1rem 0.3rem', fontSize: '0.65rem' }}
+                               tooltip={getTooltipSelic(dcomp.resultadoSelic)}
+                             >
                                ! Dados Insuf.
-                             </span>
+                             </StatusBadge>
                            )}
                          </div>
                       </td>
@@ -487,12 +551,13 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                                 <button className="btn btn-primary" style={{ padding: '0.25rem 0.5rem' }} onClick={handleSalvarRaiz}>✓</button>
                               </div>
                             ) : (
-                              <button 
-                                className="btn btn-outline" 
+                              <button
+                                className="btn btn-outline tooltip-host"
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                                 onClick={() => { setValorRaizEdit(totalCreditoAtual.toString()); setEditandoRaiz(true); }}
                                 disabled={!vigente || bloqueado}
-                                title="Editar Saldo Original"
+                                data-tooltip={tooltipSaldo}
+                                aria-label={tooltipSaldo}
                               >
                                 <Settings size={14} /> Saldo
                               </button>
@@ -501,20 +566,22 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
 
                           {bloqueado || !vigente ? (
                             <button
-                              className="btn btn-ghost btn-view-debito"
+                              className="btn btn-ghost btn-view-debito tooltip-host"
                               style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: bloqueado ? 'var(--color-warning)' : 'var(--color-text-muted)' }}
                               onClick={() => setDcompEditando({ dcomp, readOnly: true })}
-                              title={bloqueado ? 'Visualizar débitos de PER/DCOMP bloqueada' : 'Visualizar débitos de PER/DCOMP não vigente'}
+                              data-tooltip={tooltipDebitos}
+                              aria-label={tooltipDebitos}
                             >
                               <Eye size={14} /> Ver Débitos
                             </button>
                           ) : (
                             <>
-                              <button 
-                                className="btn btn-outline btn-edit-debito" 
+                              <button
+                                className="btn btn-outline btn-edit-debito tooltip-host"
                                 style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                                 onClick={() => setDcompEditando({ dcomp, readOnly: false })}
-                                title="Editar Débitos"
+                                data-tooltip={tooltipDebitos}
+                                aria-label={tooltipDebitos}
                               >
                                 <Pencil size={14} /> Débitos
                               </button>
@@ -528,7 +595,7 @@ export const TimelineCascata: React.FC<{ cadeia: CadeiaRelacional }> = ({ cadeia
                                       useStore.getState().removerDcompHipotetica(cadeia.id, dcomp.id);
                                     }
                                   }}
-                                  title="Excluir Hipotética"
+                                  title="Excluir PER/DCOMP hipotética da simulação"
                                 >
                                   <Trash size={14} /> Excluir
                                 </button>

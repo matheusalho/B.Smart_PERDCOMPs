@@ -101,14 +101,19 @@ const formatOptionalPeriodoExcel = (excelVal: unknown): string | undefined => {
 
 const buildMetadadosCreditoImportado = (row: ExcelRow): MetadadosCreditoImportado | undefined => {
   const metadados: MetadadosCreditoImportado = {
+    cnpjOrigem: toOptionalString(row['CNPJ']),
+    dataExtracao: toOptionalDateValue(firstValue(row['Data de Extração'], row['Data de Extracao'])),
     dataArrecadacaoCredito: toOptionalDateValue(firstValue(row['Data de Arrecadação'], row['Data de Arrecadacao'])),
-    competenciaCredito: toOptionalString(firstValue(row['Competência do Crédito'], row['Competencia do Credito'])),
+    competenciaCredito: toOptionalString(firstValue(row['Competência do Crédito'], row['Competencia do Credito'], row['Competência'], row['Competencia'])),
     tipoCompetenciaCredito: toOptionalString(firstValue(row['Tipo Competência'], row['Tipo Competencia'])),
     numeroPagamento: toOptionalString(firstValue(row['Número do Pagamento - DARF'], row['Numero do Pagamento - DARF'])),
     periodoApuracaoDarf: formatOptionalPeriodoExcel(firstValue(row['Período de Apuração do DARF'], row['Periodo de Apuracao do DARF'])),
+    grupoTributo: toOptionalString(row['Grupo de Tributo']),
+    codigoReceitaCredito: toOptionalString(firstValue(row['Código da Receita'], row['Codigo da Receita'])),
     processoJudicial: toOptionalString(row['Processo Judicial']),
     processoHabilitacao: toOptionalString(firstValue(row['Processo de Habilitação'], row['Processo de Habilitacao'])),
     processoAdministrativo: toOptionalString(row['Processo Administrativo']),
+    origemDiscussao: toOptionalString(firstValue(row['Origem da Discussão'], row['Origem da Discussao'])),
     numeroPerOriginal: toOptionalString(firstValue(row['Perdcomp Anterior com Detalhamento de Crédito'], row['Detalhado Perdcomp Anterior'])),
   };
 
@@ -193,7 +198,27 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
       valorMultaOriginal: toNumberValue(row['Valor Multa']),
       valorJurosOriginal: toNumberValue(row['Valor Juros']),
       valorTotalOriginal: toNumberValue(row['Valor Total']),
-      cnpjDebito: toOptionalString(row['CNPJ Detentor do Débito'])
+      cnpjDebito: toOptionalString(row['CNPJ Detentor do Débito']),
+      cnpjTransmissorDcomp: toOptionalString(row['Cnpj Transmissor PER/DCOMP']),
+      nomeEmpresarial: toOptionalString(row['Nome Empresarial']),
+      apelido: toOptionalString(row['Apelido']),
+      periodoApuracaoCredito: formatOptionalPeriodoExcel(row['Período de Apuração do Crédito']),
+      periodicidadeCredito: toOptionalString(row['Período de Apuração do Crédito - Periodicidade']),
+      inicioPeriodoApuracaoCredito: formatOptionalPeriodoExcel(row['Início do Período de Apuração do Crédito']),
+      fimPeriodoApuracaoCredito: formatOptionalPeriodoExcel(row['Fim do Período de Apuração do Crédito']),
+      cnpjDetentorCredito: toOptionalString(row['CNPJ Detentor do Crédito']),
+      totalCreditoOriginalUtilizado: toNumberValue(row['Total Crédito Original Utilizado']),
+      periodicidadeDebito: toOptionalString(row['Período de Apuração do Débito - Periodicidade']),
+      cnpjPrestador: toOptionalString(row['CNPJ Prestador']),
+      cnoObra: toOptionalString(row['Cno Obra']),
+      debitoControladoEmProcesso: toOptionalString(row['Débito Controlado em Processo']),
+      numeroReciboTransmissaoDctf: toOptionalString(row['Número do Recibo de Transmissão DCTF']),
+      numeroReciboPerDcomp: toOptionalString(row['Número do Recibo PER/DCOMP']),
+      categoriaDctf: toOptionalString(row['Categoria DCTF']),
+      dataTransmissaoDctf: formatOptionalPeriodoExcel(row['Data de Transmissão DCTF']),
+      debitoSucedida: toOptionalString(row['Débito Sucedida']),
+      idCadeiaRelacionalImportado: toOptionalString(row['ID da Cadeia Relacional']),
+      cursorValue: toOptionalString(row['CursorValue'])
     });
   });
 
@@ -241,6 +266,7 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
       dataTransmissao: parseExcelDate(firstValue(row['Data de Transmissão do Perdcomp'], row['Data Transmissão'])),
       tipoDocumento: toStringValue(firstValue(row['Tipo do Documento'], row['Tipo de Documento'])),
       situacao: toStringValue(row['Situação'], 'Pendente'),
+      situacaoDetalhada: toOptionalString(row['Situação Detalhada']),
       indicadorCredito: toStringValue(row['Indicador de Crédito']),
       tipoCredito: toStringValue(row['Tipo de Crédito']),
       detentorCredito: toStringValue(row['Detentor do Crédito']),

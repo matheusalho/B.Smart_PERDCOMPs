@@ -36,4 +36,15 @@ describe('statusRules', () => {
     expect(result.editabilidadeSimulacao).toBe('bloqueado');
     expect(result.cancelabilidade).toBe('nao_cancelavel');
   });
+  it('classifica PER/DCOMP em analise como vigente e editavel', () => {
+    const result = classificarStatusProcessamento({
+      status: 'Em análise',
+      tipoDocumento: 'Decl. Compensação',
+    });
+
+    expect(result.vigenciaCascata).toBe('vigente');
+    expect(result.editabilidadeSimulacao).toBe('editavel');
+    expect(result.cancelabilidade).toBe('cancelavel');
+    expect(result.motivos).toContain('documento_em_analise_vigente_editavel');
+  });
 });

@@ -7,6 +7,57 @@ export interface VedacaoAlerta {
   fontes: FonteNormativa[];
 }
 
+const MARCO_DCTFWEB_GRUPO_1 = { ano: 2018, mes: 8 };
+
+function extrairAnoMesCredito(periodoApuracaoCredito?: string | Date): { ano: number; mes: number } | null {
+  if (!periodoApuracaoCredito) return null;
+
+  if (periodoApuracaoCredito instanceof Date && !Number.isNaN(periodoApuracaoCredito.getTime())) {
+    return {
+      ano: periodoApuracaoCredito.getFullYear(),
+      mes: periodoApuracaoCredito.getMonth() + 1,
+    };
+  }
+
+  const valor = String(periodoApuracaoCredito);
+
+  const periodoEntreDatas = valor.match(/DE\s+(\d{2})\/(\d{2})\/(\d{4})\s+A\s+(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (periodoEntreDatas) {
+    return {
+      mes: Number(periodoEntreDatas[5]),
+      ano: Number(periodoEntreDatas[6]),
+    };
+  }
+
+  const dataCompleta = valor.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (dataCompleta) {
+    return {
+      mes: Number(dataCompleta[2]),
+      ano: Number(dataCompleta[3]),
+    };
+  }
+
+  const competencia = valor.match(/(\d{2})\/(\d{4})/);
+  if (competencia) {
+    return {
+      mes: Number(competencia[1]),
+      ano: Number(competencia[2]),
+    };
+  }
+
+  return null;
+}
+
+function creditoAnteriorAoMarcoDctfWebGrupo1(periodoApuracaoCredito?: string | Date): boolean {
+  const anoMes = extrairAnoMesCredito(periodoApuracaoCredito);
+  if (!anoMes) return false;
+
+  return (
+    anoMes.ano < MARCO_DCTFWEB_GRUPO_1.ano ||
+    (anoMes.ano === MARCO_DCTFWEB_GRUPO_1.ano && anoMes.mes < MARCO_DCTFWEB_GRUPO_1.mes)
+  );
+}
+
 export function verificarVedacaoCredito(dcomp: Pick<DCOMP, 'tipoCredito'>): VedacaoAlerta[] {
   const alertas: VedacaoAlerta[] = [];
   const tipoCreditoStr = (dcomp.tipoCredito || '').toLowerCase();
@@ -56,6 +107,7 @@ export function verificarVedacaoCredito(dcomp: Pick<DCOMP, 'tipoCredito'>): Veda
 export function verificarVedacaoDebito(
   debito: Pick<DebitoOficial, 'codigoReceita' | 'dataVencimento'>,
   dataDcomp?: Date,
+  periodoApuracaoCredito?: string | Date,
 ): VedacaoAlerta[] {
   const alertas: VedacaoAlerta[] = [];
   const codReceita = debito.codigoReceita.replace(/[^0-9]/g, '');
@@ -80,10 +132,10 @@ export function verificarVedacaoDebito(
   }
 
   // VED-DCTFWEB-CRUZADA
-  // Qualquer débito pode cair nisso, lançaremos um alerta genérico apenas se for contribuição previdenciária (ex: 1082, 1099, etc) 
-  // e dependendo do porte, mas seguindo a diretriz vamos soltar um aviso geral de cruzamento:
-  const previdenciariosPattern = /^(1082|1099|1138|1646|1652)/; // Lista ilustrativa
-  if (previdenciariosPattern.test(codReceita)) {
+  // Para o Grupo 1, a compensação cruzada só merece alerta consultivo quando o crédito usado
+  // é anterior ao PA 08/2018, marco de obrigatoriedade da DCTFWeb/eSocial.
+  const previdenciariosPattern = /^(1082|1099|1138|1191|1196|1646|1652)/;
+  if (previdenciariosPattern.test(codReceita) && creditoAnteriorAoMarcoDctfWebGrupo1(periodoApuracaoCredito)) {
     alertas.push({
       codigo: 'VED-DCTFWEB-CRUZADA',
       mensagem: 'Atenção: Pode haver vedação cruzada para débitos previdenciários dependendo da data de obrigatoriedade da DCTFWeb da empresa.',

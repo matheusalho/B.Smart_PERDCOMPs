@@ -15,6 +15,18 @@ const getLastAutoTableFinalY = (doc: AutoTableDoc, fallbackY: number): number =>
   doc.lastAutoTable?.finalY ?? fallbackY
 );
 
+const getCreditoDataTransmissaoOriginal = (dcomp: DCOMP): number => (
+  dcomp.divergenciaDetalhes?.esperado ?? dcomp.valorCreditoDataTransmissao
+);
+
+const getCreditoDataTransmissaoRecalculado = (dcomp: DCOMP): number => (
+  dcomp.divergenciaDetalhes?.calculado ?? dcomp.valorCreditoDataTransmissao
+);
+
+const getSaldoProximaDcompOriginal = (dcomp: DCOMP, fallback: number): number => (
+  dcomp.saldoCreditoOriginalAnterior ?? fallback
+);
+
 export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'dark' | 'light', todasAsCadeias: CadeiaRelacional[] = [], empresa: { razaoSocial: string; cnpj: string } | null = null) => {
   const { default: jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -251,7 +263,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
     sim.dcomps.forEach(dcomp => {
       dcomp.debitos.forEach(deb => {
-        const vedacoesDeb = verificarVedacaoDebito(deb, dcomp.dataTransmissaoOriginal || new Date());
+        const vedacoesDeb = verificarVedacaoDebito(deb, dcomp.dataTransmissaoOriginal || new Date(), dcomp.periodoApuracaoCredito);
         vedacoesDeb.forEach(v => todosAlertas.add(`Vedação de Débito ${deb.codigoReceita} (${v.codigo}): ${v.mensagem}`));
       });
     });
@@ -402,13 +414,13 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       dcompsEditadas.forEach(d => {
         const origCreditoDetalhado = d.valorTotalCreditoDetalhadoOriginal;
-        const origCreditoTransmissao = d.divergenciaDetalhes?.esperado ?? d.valorCreditoDataTransmissao;
+        const origCreditoTransmissao = getCreditoDataTransmissaoOriginal(d);
         const origDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotalOriginal, 0);
         const origCreditoUsado = d.valorUtilizadoPerdcompOriginal;
-        const origSaldo = origCreditoTransmissao - origCreditoUsado;
+        const origSaldo = getSaldoProximaDcompOriginal(d, origCreditoTransmissao - origCreditoUsado);
 
         const novoCreditoDetalhado = d.valorTotalCreditoDetalhado;
-        const novoCreditoTransmissao = d.valorCreditoDataTransmissao;
+        const novoCreditoTransmissao = getCreditoDataTransmissaoRecalculado(d);
         const novoDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0);
         const novoCreditoUsado = d.valorUtilizadoPerdcomp;
         const novoSaldo = d.saldoCreditoOriginalCalculado ?? 0;
@@ -487,10 +499,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
     doc.text('2º Espelho de Modificações da Cadeia (Manuais e Colaterais)', 14, startY);
     startY += 6;
 
-    const dcompsAfetadas = simulacao.dcomps.filter(d => 
-      d.statusCascata === 'RETIFICAR' || 
-      d.statusCascata === 'EDITADO_E_RETIFICAR' || 
-      d.isManuallyEdited || 
+    const dcompsVigentesEspelho = simulacao.dcomps.filter(d =>
+      d.indicadorCredito !== 'Hipotético' &&
+      isVigente(d.situacao, d.tipoDocumento, d.id)
+    );
+
+    const dcompsAfetadas = dcompsVigentesEspelho.filter(d =>
+      d.statusCascata === 'RETIFICAR' ||
+      d.statusCascata === 'EDITADO_E_RETIFICAR' ||
+      d.isManuallyEdited ||
       d.statusCascata === 'EDITADO'
     );
 
@@ -503,17 +520,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       const colateralOriginalBody: RowInput[] = [];
       const colateralNovoBody: RowInput[] = [];
 
-      simulacao.dcomps.forEach(d => {
-        if (d.indicadorCredito === 'Hipotético') return;
-        
+      dcompsVigentesEspelho.forEach(d => {
         const origCreditoDetalhado = d.valorTotalCreditoDetalhadoOriginal;
-        const origCreditoTransmissao = d.divergenciaDetalhes?.esperado ?? d.valorCreditoDataTransmissao;
+        const origCreditoTransmissao = getCreditoDataTransmissaoOriginal(d);
         const origDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotalOriginal, 0);
         const origCreditoUsado = d.valorUtilizadoPerdcompOriginal;
-        const origSaldo = origCreditoTransmissao - origCreditoUsado;
+        const origSaldo = getSaldoProximaDcompOriginal(d, origCreditoTransmissao - origCreditoUsado);
 
         const novoCreditoDetalhado = d.valorTotalCreditoDetalhado;
-        const novoCreditoTransmissao = d.valorCreditoDataTransmissao;
+        const novoCreditoTransmissao = getCreditoDataTransmissaoRecalculado(d);
         const novoDebitos = d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0);
         const novoCreditoUsado = d.valorUtilizadoPerdcomp;
         const novoSaldo = d.saldoCreditoOriginalCalculado ?? 0;

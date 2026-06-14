@@ -1,9 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, Loader2, Database } from 'lucide-react';
-import { useStore } from '../store';
-import { mockCadeias } from '../mockData';
+import { Database, Loader2, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { mockCadeias } from '../mockData';
+import { useStore } from '../store';
 
 export const UploadComponent: React.FC = () => {
   const importarDados = useStore(state => state.importarDados);
@@ -11,25 +11,25 @@ export const UploadComponent: React.FC = () => {
   const [progressMsg, setProgressMsg] = useState('');
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
     if (acceptedFiles.length === 0) {
-      toast.error('Formato de arquivo inválido. Por favor, envie apenas planilhas Excel (.xlsx)');
+      toast.error('Formato de arquivo inválido. Envie apenas planilhas Excel (.xlsx).');
       return;
     }
-    
+
     setLoading(true);
     setProgressMsg('Lendo arquivo...');
-    
+
     try {
       const file = acceptedFiles[0];
       const buffer = await file.arrayBuffer();
-      
+
       setProgressMsg('Processando dados e simulando regras (isto pode levar alguns segundos)...');
-      
+
       const worker = new Worker(new URL('../workers/excelWorker.ts', import.meta.url), { type: 'module' });
-      
+
       worker.onmessage = (e) => {
         const { success, cadeias, empresa, importQualityReport, error: workerError } = e.data;
+
         if (success) {
           toast.success('Planilha processada com sucesso!');
           importarDados(cadeias, empresa, true, importQualityReport);
@@ -37,18 +37,44 @@ export const UploadComponent: React.FC = () => {
           toast.error(workerError || 'Erro desconhecido ao processar a planilha.');
           setLoading(false);
         }
+
         worker.terminate();
       };
-      
-      worker.onerror = (err: ErrorEvent) => {
+
+      worker.onerror = async (err: Event | ErrorEvent) => {
+        err.preventDefault?.();
         console.error(err);
-        const errMsg = err.message || 'Desconhecido';
-        toast.error(`Falha no Worker: ${errMsg}. (Possível Out of Memory)`);
+        worker.terminate();
+
+        const errMsg = describeWorkerError(err);
+        setProgressMsg('Worker indisponível. Processando no thread principal...');
+        toast.error(`Worker indisponível: ${errMsg}. Tentando fallback local.`);
+
+        try {
+          const fallbackBuffer = await file.arrayBuffer();
+          const { processExcelBuffer } = await import('../services/importPipeline');
+          const { cadeias, empresa, importQualityReport } = processExcelBuffer(fallbackBuffer);
+
+          toast.success('Planilha processada com sucesso pelo fallback local.');
+          importarDados(cadeias, empresa, true, importQualityReport);
+        } catch (fallbackError) {
+          console.error(fallbackError);
+          toast.error(
+            fallbackError instanceof Error
+              ? `Falha ao processar a planilha: ${fallbackError.message}`
+              : 'Falha ao processar a planilha.',
+          );
+          setLoading(false);
+        }
+      };
+
+      worker.onmessageerror = (err) => {
+        console.error(err);
+        toast.error('Falha ao transferir dados entre a tela e o Worker.');
         setLoading(false);
         worker.terminate();
       };
 
-      // Transferimos o ArrayBuffer para o Worker para zero-copy (performance máxima)
       worker.postMessage({ buffer }, [buffer]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro desconhecido ao ler o arquivo.');
@@ -60,9 +86,9 @@ export const UploadComponent: React.FC = () => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
     },
-    multiple: false
+    multiple: false,
   });
 
   return (
@@ -76,12 +102,12 @@ export const UploadComponent: React.FC = () => {
         </p>
       </div>
 
-      <div 
-        {...getRootProps()} 
+      <div
+        {...getRootProps()}
         className={`dropzone upload-area ${isDragActive ? 'active' : ''}`}
         style={{
           width: '100%',
-          maxWidth: '600px'
+          maxWidth: '600px',
         }}
       >
         <input {...getInputProps()} />
@@ -105,8 +131,8 @@ export const UploadComponent: React.FC = () => {
         </p>
       </div>
 
-      <button 
-        className="btn btn-ghost" 
+      <button
+        className="btn btn-ghost"
         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-primary)' }}
         onClick={() => {
           importarDados(mockCadeias, { cnpj: '00.000.000/0001-00', razaoSocial: 'EMPRESA MOCK DE EXEMPLO S/A' });
@@ -119,3 +145,15 @@ export const UploadComponent: React.FC = () => {
     </div>
   );
 };
+
+function describeWorkerError(err: Event | ErrorEvent): string {
+  if ('message' in err && err.message) {
+    const location = 'filename' in err && err.filename
+      ? ` (${err.filename}:${err.lineno || 0}:${err.colno || 0})`
+      : '';
+
+    return `${err.message}${location}`;
+  }
+
+  return 'erro de carregamento ou execução sem mensagem detalhada';
+}
