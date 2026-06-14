@@ -2,12 +2,9 @@ import type { SimulacaoSalva, CadeiaRelacional, DCOMP } from '../models/types';
 import { format } from 'date-fns';
 import { isVigente } from '../utils/statusHelper';
 import { verificarVedacaoCredito, verificarVedacaoDebito } from './normativo/vedacaoCompensacaoService';
-import {
-  buscarRastreabilidadeValor,
-  formatarResumoRastreabilidadeValor,
-} from './valueTraceability';
+import { buscarRastreabilidadeValor } from './valueTraceability';
 import type { jsPDF as JsPDFDocument } from 'jspdf';
-import type { RowInput, Table } from 'jspdf-autotable';
+import type { CellHookData, RowInput, Table } from 'jspdf-autotable';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -31,17 +28,117 @@ const getSaldoProximaDcompOriginal = (dcomp: DCOMP, fallback: number): number =>
   dcomp.saldoCreditoOriginalAnterior ?? fallback
 );
 
-const formatCurrencyWithTrace = (
+const CAMPOS_RASTREIO_ORIGINAIS = [
+  'valorTotalCreditoDetalhadoOriginal',
+  'valorCreditoDataTransmissaoOriginal',
+  'debitosTotalOriginal',
+  'valorUtilizadoPerdcompOriginal',
+  'saldoProximaDcompOriginal',
+];
+
+const CAMPOS_RASTREIO_RECALCULADOS = [
+  'valorTotalCreditoDetalhado',
+  'valorCreditoDataTransmissao',
+  'debitosTotal',
+  'valorUtilizadoPerdcomp',
+  'saldoCreditoOriginalCalculado',
+];
+
+const compactarOrigemValor = (origem: string): string => {
+  const mapa: Record<string, string> = {
+    importado_rfb: 'RFB',
+    calculado_motor: 'CALC',
+    simulado_usuario: 'SIM',
+    fallback_operacional: 'FALL',
+    replicado_credito_raiz: 'RAIZ',
+  };
+
+  return mapa[origem] ?? origem.toUpperCase().slice(0, 6);
+};
+
+const compactarMetodo = (metodo: string): string => {
+  if (metodo.includes('selic_normativa')) return 'SELIC';
+  if (metodo.includes('importado_eCAC')) return 'ECAC';
+  if (metodo.includes('divergencia')) return 'DIV';
+  if (metodo.includes('cascata')) return 'CASC';
+  if (metodo.includes('edicao_usuario')) return 'EDIC';
+  if (metodo.includes('hipotetica')) return 'HIP';
+  if (metodo.includes('estimativa') || metodo.includes('fallback') || metodo.includes('fator_historico')) return 'EST';
+  if (metodo.includes('credito_raiz')) return 'RAIZ';
+
+  return metodo.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 6);
+};
+
+const compactarStatus = (status: string): string => {
+  const mapa: Record<string, string> = {
+    normativo: 'NORM',
+    estimativa_historica: 'EST',
+    dados_insuficientes: 'DADOS',
+    parcial: 'PARC',
+  };
+
+  return mapa[status] ?? status.toUpperCase().slice(0, 6);
+};
+
+const RASTREABILIDADE_BADGE_GLOSSARIO = [
+  ['RFB', 'Valor importado da Receita Federal/e-CAC.'],
+  ['ECAC', 'Método de obtenção por importação direta do e-CAC.'],
+  ['CALC', 'Valor calculado pelo motor do B.Smart.'],
+  ['SELIC', 'cálculo normativo com taxa SELIC conforme tipo de crédito e dados disponíveis.'],
+  ['NORM', 'Status normativo: cálculo com dados suficientes para aplicação da metodologia prevista.'],
+  ['SIM', 'Valor simulado ou informado pelo usuário.'],
+  ['EDIC', 'Valor decorrente de edição manual do usuário.'],
+  ['FALL', 'Fallback operacional aplicado quando a origem normativa completa não está disponível.'],
+  ['EST', 'Estimativa histórica ou método aproximado por insuficiência de dados.'],
+  ['DADOS', 'Há dados ausentes ou insuficientes associados ao valor.'],
+  ['PARC', 'Cálculo parcial: parte dos valores foi calculada e parte depende de hipótese ou dado ausente.'],
+  ['CASC', 'Valor produzido pela cascata de recálculo ou pelo encadeamento histórico.'],
+  ['DIV', 'Valor relacionado ao tratamento de divergência entre importado, esperado ou recalculado.'],
+  ['HIP', 'Valor associado a PER/DCOMP hipotética.'],
+  ['RAIZ', 'Valor replicado ou derivado do crédito raiz da cadeia.'],
+];
+
+const criarIndicadoresRastreabilidade = (
   simulacao: SimulacaoSalva,
   dcomp: DCOMP,
-  campo: string,
-  val: number,
-) => {
-  const resumo = formatarResumoRastreabilidadeValor(
-    buscarRastreabilidadeValor(simulacao, dcomp.id, campo),
-  );
+  campos: string[],
+): string => {
+  const indicadores = new Set<string>();
 
-  return resumo ? `${formatCurrency(val)}\n${resumo}` : formatCurrency(val);
+  campos.forEach((campo) => {
+    const rastreabilidade = buscarRastreabilidadeValor(simulacao, dcomp.id, campo);
+    if (!rastreabilidade) return;
+
+    indicadores.add(compactarOrigemValor(rastreabilidade.origemValor));
+    indicadores.add(compactarMetodo(rastreabilidade.metodo));
+
+    if (rastreabilidade.statusCalculo) {
+      indicadores.add(compactarStatus(rastreabilidade.statusCalculo));
+    }
+
+    if (rastreabilidade.dadosAusentes.length > 0) {
+      indicadores.add('DADOS');
+    }
+  });
+
+  return Array.from(indicadores).join('\n');
+};
+
+const getBadgeFillColor = (label: string, isDark: boolean): [number, number, number] => {
+  if (['RFB', 'ECAC'].includes(label)) return isDark ? [30, 64, 175] : [219, 234, 254];
+  if (['CALC', 'SELIC', 'NORM', 'CASC'].includes(label)) return isDark ? [22, 101, 52] : [220, 252, 231];
+  if (['SIM', 'EDIC', 'HIP'].includes(label)) return isDark ? [133, 77, 14] : [254, 243, 199];
+  if (['FALL', 'EST', 'DADOS', 'PARC'].includes(label)) return isDark ? [127, 29, 29] : [254, 226, 226];
+  return isDark ? [51, 65, 85] : [226, 232, 240];
+};
+
+const getBadgeTextColor = (label: string, isDark: boolean): [number, number, number] => {
+  if (isDark) return [255, 255, 255];
+  if (['RFB', 'ECAC'].includes(label)) return [30, 64, 175];
+  if (['CALC', 'SELIC', 'NORM', 'CASC'].includes(label)) return [22, 101, 52];
+  if (['SIM', 'EDIC', 'HIP'].includes(label)) return [146, 64, 14];
+  if (['FALL', 'EST', 'DADOS', 'PARC'].includes(label)) return [153, 27, 27];
+  return [51, 65, 85];
 };
 
 export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'dark' | 'light', todasAsCadeias: CadeiaRelacional[] = [], empresa: { razaoSocial: string; cnpj: string } | null = null) => {
@@ -49,13 +146,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
   const { default: autoTable } = await import('jspdf-autotable');
 
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
     format: 'a4'
   }) as AutoTableDoc;
 
   const isDark = theme === 'dark';
   const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const contentRight = pageWidth - 14;
   
   // Paletas e Design Tokens baseados no tema
   const bgColor = isDark ? [3, 3, 5] as [number, number, number] : [248, 250, 252] as [number, number, number];
@@ -73,6 +172,46 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
   const headerNeutralBg = isDark ? [45, 45, 55] as [number, number, number] : [241, 245, 249] as [number, number, number];
   const headerNeutralText = isDark ? [248, 250, 252] as [number, number, number] : [71, 85, 105] as [number, number, number];
+
+  const traceBadgeHooks = (indicadorColumnIndex: number) => ({
+    didParseCell: (data: CellHookData) => {
+      if (data.section === 'body' && data.column.index === indicadorColumnIndex) {
+        data.cell.text = [];
+      }
+    },
+    didDrawCell: (data: CellHookData) => {
+      if (data.section !== 'body' || data.column.index !== indicadorColumnIndex) return;
+
+      const raw = typeof data.cell.raw === 'string' ? data.cell.raw : '';
+      const labels = raw.split('\n').filter(Boolean).slice(0, 6);
+      if (labels.length === 0) return;
+
+      const docWithShapes = data.doc as JsPDFDocument;
+      const badgeHeight = 4.5;
+      const gap = 1.2;
+      const xStart = data.cell.x + 1.4;
+      const maxWidth = data.cell.width - 2.8;
+      let x = xStart;
+      let y = data.cell.y + 2;
+
+      labels.forEach((label) => {
+        const width = Math.min(Math.max(label.length * 1.6 + 3.8, 9), maxWidth);
+        if (x + width > xStart + maxWidth) {
+          x = xStart;
+          y += badgeHeight + gap;
+        }
+
+        const fillColor = getBadgeFillColor(label, isDark);
+        const textBadgeColor = getBadgeTextColor(label, isDark);
+        docWithShapes.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+        docWithShapes.roundedRect(x, y, width, badgeHeight, 1.6, 1.6, 'F');
+        docWithShapes.setFontSize(5.6);
+        docWithShapes.setTextColor(textBadgeColor[0], textBadgeColor[1], textBadgeColor[2]);
+        docWithShapes.text(label, x + width / 2, y + 3.2, { align: 'center' });
+        x += width + gap;
+      });
+    },
+  });
 
   const drawBackground = () => {
     doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
@@ -145,7 +284,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
   // Capa / Cabeçalho Principal
   if (logoBase64) {
-    doc.addImage(logoBase64 as string, 'PNG', 176, 16, 20, 20);
+    doc.addImage(logoBase64 as string, 'PNG', contentRight - 20, 16, 20, 20);
   }
 
   doc.setFontSize(24);
@@ -175,10 +314,10 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
   // Data de Emissão alinhada à direita
   doc.setFontSize(10);
   doc.setTextColor(180, 190, 200);
-  doc.text('Emitido em:', 196, 44, { align: 'right' });
+  doc.text('Emitido em:', contentRight, 44, { align: 'right' });
   doc.setFontSize(11);
   doc.setTextColor(255, 255, 255);
-  doc.text(format(new Date(), 'dd/MM/yyyy HH:mm'), 196, 50, { align: 'right' });
+  doc.text(format(new Date(), 'dd/MM/yyyy HH:mm'), contentRight, 50, { align: 'right' });
   
   let currentY = 56;
 
@@ -216,7 +355,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
   });
 
   doc.setDrawColor(tableBorder[0], tableBorder[1], tableBorder[2]);
-  doc.line(14, currentY + 4, 196, currentY + 4);
+  doc.line(14, currentY + 4, contentRight, currentY + 4);
 
   // Seção: Visão Executiva (Snapshot)
   currentY += 14;
@@ -268,6 +407,27 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
   doc.text('4. Valores Simulados: Inseridos ou editados manualmente pelo usuário na plataforma.', 14, startY);
   
   startY += 12;
+
+  doc.setFontSize(11);
+  doc.setTextColor(baleraBlue[0], baleraBlue[1], baleraBlue[2]);
+  doc.text('Glossário das badges da coluna Indicadores', 14, startY);
+  startY += 4;
+
+  autoTable(doc, {
+    startY,
+    head: [['Badge', 'Significado']],
+    body: RASTREABILIDADE_BADGE_GLOSSARIO,
+    headStyles: { fillColor: headerNeutralBg, textColor: headerNeutralText, fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 2, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor },
+    alternateRowStyles: { fillColor: tableAltBg },
+    columnStyles: {
+      0: { cellWidth: 24, minCellHeight: 8, halign: 'center' },
+      1: { cellWidth: 240 }
+    },
+    ...traceBadgeHooks(0)
+  });
+
+  startY = getLastAutoTableFinalY(doc, startY) + 12;
 
   // Analisamos todas as simulações para extrair alertas globais de auditoria
   const todosAlertas = new Set<string>();
@@ -324,7 +484,7 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
     } else if (index > 0) {
       startY += 10;
       doc.setDrawColor(tableBorder[0], tableBorder[1], tableBorder[2]);
-      doc.line(14, startY, 196, startY);
+      doc.line(14, startY, contentRight, startY);
       startY += 15;
     }
 
@@ -385,12 +545,6 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
     const dcompsEditadas = simulacao.dcomps.filter(d => d.isManuallyEdited);
 
-    const getStatusSelicStr = (d: DCOMP) => {
-      if (!d.resultadoSelic) return 'N/A';
-      const st = d.resultadoSelic.statusCalculo;
-      return st === 'normativo' ? 'Normativo' : st === 'estimativa_historica' ? 'Estimativa' : 'Dados Insuf.';
-    };
-
     if (dcompsEditadas.length === 0) {
       doc.setFontSize(10);
       doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
@@ -443,21 +597,23 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         const novoSaldo = d.saldoCreditoOriginalCalculado ?? 0;
 
         editadasOriginalBody.push([
-          `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhadoOriginal', origCreditoDetalhado),
-          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissaoOriginal', origCreditoTransmissao),
-          formatCurrencyWithTrace(simulacao, d, 'debitosTotalOriginal', origDebitos),
-          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcompOriginal', origCreditoUsado),
-          formatCurrencyWithTrace(simulacao, d, 'saldoProximaDcompOriginal', origSaldo)
+          d.id,
+          formatCurrency(origCreditoDetalhado),
+          formatCurrency(origCreditoTransmissao),
+          formatCurrency(origDebitos),
+          formatCurrency(origCreditoUsado),
+          formatCurrency(origSaldo),
+          criarIndicadoresRastreabilidade(simulacao, d, CAMPOS_RASTREIO_ORIGINAIS)
         ]);
 
         editadasNovoBody.push([
-          `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhado', novoCreditoDetalhado),
-          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissao', novoCreditoTransmissao),
-          formatCurrencyWithTrace(simulacao, d, 'debitosTotal', novoDebitos),
-          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcomp', novoCreditoUsado),
-          formatCurrencyWithTrace(simulacao, d, 'saldoCreditoOriginalCalculado', novoSaldo)
+          d.id,
+          formatCurrency(novoCreditoDetalhado),
+          formatCurrency(novoCreditoTransmissao),
+          formatCurrency(novoDebitos),
+          formatCurrency(novoCreditoUsado),
+          formatCurrency(novoSaldo),
+          criarIndicadoresRastreabilidade(simulacao, d, CAMPOS_RASTREIO_RECALCULADOS)
         ]);
       });
 
@@ -473,11 +629,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       autoTable(doc, {
         startY: startY,
-        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP']],
+        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP', 'Indicadores']],
         body: editadasOriginalBody,
         headStyles: { fillColor: headerNeutralBg, textColor: headerNeutralText }, 
         styles: { fontSize: 7, cellPadding: 2, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor },
-        alternateRowStyles: { fillColor: tableAltBg }
+        alternateRowStyles: { fillColor: tableAltBg },
+        columnStyles: {
+          6: { cellWidth: 36, minCellHeight: 18, halign: 'center' }
+        },
+        ...traceBadgeHooks(6)
       });
 
       startY = getLastAutoTableFinalY(doc, startY) + 10;
@@ -495,11 +655,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       autoTable(doc, {
         startY: startY,
-        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP']],
+        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP', 'Indicadores']],
         body: editadasNovoBody,
         headStyles: { fillColor: baleraBlue, textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 7, cellPadding: 2, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor },
-        alternateRowStyles: { fillColor: tableAltBg }
+        alternateRowStyles: { fillColor: tableAltBg },
+        columnStyles: {
+          6: { cellWidth: 36, minCellHeight: 18, halign: 'center' }
+        },
+        ...traceBadgeHooks(6)
       });
 
       startY = getLastAutoTableFinalY(doc, startY) + 14;
@@ -551,21 +715,23 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
         const novoSaldo = d.saldoCreditoOriginalCalculado ?? 0;
 
         colateralOriginalBody.push([
-          `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhadoOriginal', origCreditoDetalhado),
-          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissaoOriginal', origCreditoTransmissao),
-          formatCurrencyWithTrace(simulacao, d, 'debitosTotalOriginal', origDebitos),
-          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcompOriginal', origCreditoUsado),
-          formatCurrencyWithTrace(simulacao, d, 'saldoProximaDcompOriginal', origSaldo)
+          d.id,
+          formatCurrency(origCreditoDetalhado),
+          formatCurrency(origCreditoTransmissao),
+          formatCurrency(origDebitos),
+          formatCurrency(origCreditoUsado),
+          formatCurrency(origSaldo),
+          criarIndicadoresRastreabilidade(simulacao, d, CAMPOS_RASTREIO_ORIGINAIS)
         ]);
 
         colateralNovoBody.push([
-          `${d.id}\n${getStatusSelicStr(d)}`,
-          formatCurrencyWithTrace(simulacao, d, 'valorTotalCreditoDetalhado', novoCreditoDetalhado),
-          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissao', novoCreditoTransmissao),
-          formatCurrencyWithTrace(simulacao, d, 'debitosTotal', novoDebitos),
-          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcomp', novoCreditoUsado),
-          formatCurrencyWithTrace(simulacao, d, 'saldoCreditoOriginalCalculado', novoSaldo)
+          d.id,
+          formatCurrency(novoCreditoDetalhado),
+          formatCurrency(novoCreditoTransmissao),
+          formatCurrency(novoDebitos),
+          formatCurrency(novoCreditoUsado),
+          formatCurrency(novoSaldo),
+          criarIndicadoresRastreabilidade(simulacao, d, CAMPOS_RASTREIO_RECALCULADOS)
         ]);
       });
 
@@ -576,11 +742,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       autoTable(doc, {
         startY: startY,
-        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP']],
+        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP', 'Indicadores']],
         body: colateralOriginalBody,
         headStyles: { fillColor: headerNeutralBg, textColor: headerNeutralText }, 
         styles: { fontSize: 7, cellPadding: 2, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor },
-        alternateRowStyles: { fillColor: tableAltBg }
+        alternateRowStyles: { fillColor: tableAltBg },
+        columnStyles: {
+          6: { cellWidth: 36, minCellHeight: 18, halign: 'center' }
+        },
+        ...traceBadgeHooks(6)
       });
 
       startY = getLastAutoTableFinalY(doc, startY) + 10;
@@ -598,11 +768,15 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
 
       autoTable(doc, {
         startY: startY,
-        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP']],
+        head: [['PER/DCOMP', 'Valor Crédito Inicial', 'Créd. Data Transm.', 'Débitos Compensados', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP', 'Indicadores']],
         body: colateralNovoBody,
         headStyles: { fillColor: dangerRed, textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 7, cellPadding: 2, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor },
-        alternateRowStyles: { fillColor: tableAltBg }
+        alternateRowStyles: { fillColor: tableAltBg },
+        columnStyles: {
+          6: { cellWidth: 36, minCellHeight: 18, halign: 'center' }
+        },
+        ...traceBadgeHooks(6)
       });
 
       startY = getLastAutoTableFinalY(doc, startY) + 14;
@@ -626,20 +800,29 @@ export const generatePdfReport = async (simulacoes: SimulacaoSalva[], theme: 'da
       dcompsHipoteticas.forEach(d => {
         hipoteticaBody.push([
           d.id,
-          formatCurrencyWithTrace(simulacao, d, 'valorCreditoDataTransmissao', d.valorCreditoDataTransmissao),
-          formatCurrencyWithTrace(simulacao, d, 'debitosTotal', d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0)),
-          formatCurrencyWithTrace(simulacao, d, 'valorUtilizadoPerdcomp', d.valorUtilizadoPerdcomp),
-          formatCurrencyWithTrace(simulacao, d, 'saldoCreditoOriginalCalculado', d.saldoCreditoOriginalCalculado ?? 0)
+          formatCurrency(d.valorCreditoDataTransmissao),
+          formatCurrency(d.debitos.reduce((acc, deb) => acc + deb.valorTotal, 0)),
+          formatCurrency(d.valorUtilizadoPerdcomp),
+          formatCurrency(d.saldoCreditoOriginalCalculado ?? 0),
+          criarIndicadoresRastreabilidade(
+            simulacao,
+            d,
+            ['valorCreditoDataTransmissao', 'debitosTotal', 'valorUtilizadoPerdcomp', 'saldoCreditoOriginalCalculado'],
+          )
         ]);
       });
       
       autoTable(doc, {
         startY: startY,
-        head: [['PER/DCOMP Hipotética', 'Créd. Data Transm.', 'Débitos', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP']],
+        head: [['PER/DCOMP Hipotética', 'Créd. Data Transm.', 'Débitos', 'Créd. Orig. Usado', 'Saldo Próx. DCOMP', 'Indicadores']],
         body: hipoteticaBody,
         headStyles: { fillColor: successGreen, textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 2, textColor: textColor, fillColor: tableBg, lineColor: tableLineColor },
-        alternateRowStyles: { fillColor: tableAltBg }
+        alternateRowStyles: { fillColor: tableAltBg },
+        columnStyles: {
+          5: { cellWidth: 36, minCellHeight: 18, halign: 'center' }
+        },
+        ...traceBadgeHooks(5)
       });
       
       startY = getLastAutoTableFinalY(doc, startY) + 14;
