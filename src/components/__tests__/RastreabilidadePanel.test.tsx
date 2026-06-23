@@ -72,12 +72,20 @@ function readRealSheet(fileName: string): ArrayBuffer {
 
 function latestSheetFile(): string {
   return readdirSync(sheetsDir)
-    .filter((file) => file.toLowerCase().endsWith('.xlsx') && !file.startsWith('~$'))
+    .filter(isEcacFixture)
     .map((file) => ({
       file,
       mtime: statSync(resolve(sheetsDir, file)).mtimeMs,
     }))
     .sort((a, b) => b.mtime - a.mtime)[0].file;
+}
+
+function isEcacFixture(fileName: string): boolean {
+  const normalized = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const isEcacReport = normalized === 'relatorio.xlsx' ||
+    normalized.startsWith('relatorio de analise ecac') ||
+    normalized.startsWith('relatorio de analise e-cac');
+  return isEcacReport && normalized.endsWith('.xlsx') && !fileName.startsWith('~$');
 }
 
 function selecionarDocumentosRepresentativos(cadeias: CadeiaRelacional[]) {

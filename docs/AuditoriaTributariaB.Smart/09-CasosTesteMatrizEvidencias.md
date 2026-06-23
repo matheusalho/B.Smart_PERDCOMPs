@@ -45,7 +45,9 @@ Critica.
 | CT-REL-001 | Qualquer | Rastreabilidade no PDF | AUD-08; invariantes AUD-05 | Simulacao salva com edicao manual de debito e recalculo de cascata | PDF mostra valor importado/original, valor simulado/recalculado, delta, origem do valor e metodo de calculo; nao usa `Correto` para estimativa operacional | `ReportGeneratorService.ts` | Em especificacao |
 | CT-REL-002 | DCOMP hipotetica | Premissas de calculo em PDF | AUD-01, AUD-07, AUD-08 | Simulacao salva com DCOMP hipotetica antes da implementacao normativa de SELIC | PDF identifica DCOMP como hipotetica/simulada e informa que consumo de credito e estimativa operacional quando `SelicService` normativo nao estiver disponivel | `ReportGeneratorService.ts`, `ModalHipotetica.tsx` | Em especificacao |
 | CT-REL-003 | Qualquer tipo com regra SELIC | Secao de metodologia/fonte | AUD-01, AUD-08, FX-SEL-001 a FX-SEL-008 | Simulacao com calculo SELIC normativo, estimado e caso de dados insuficientes | PDF lista `statusCalculo`, fonte normativa, taxa, termo inicial/final, hipoteses e dados ausentes por cadeia/documento | Futuro `SelicService`, `ReportGeneratorService.ts` | Em especificacao |
-| CT-REL-004 | Qualquer | Exportacao Excel futura | AUD-08 | Exportacao de simulacao com cascata, debitos, status e SELIC | Excel possui abas `Resumo`, `Premissas`, `Cascata`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`, preservando campos `...Original` e deltas | Futuro exportador Excel | Em especificacao |
+| CT-REL-004 | Qualquer | Exportacao Excel consolidada | AUD-08 | Exportacao de simulacao com cascata, debitos, status e SELIC | Excel possui sete abas; `Projeção Retificações Cadeias` vem primeiro e as demais sao `Resumo`, `Premissas`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`, preservando campos `...Original` e rastreabilidade | `ExcelReportGeneratorService.ts`, `ExcelReportGeneratorService.test.ts` | Implementado |
+| CT-REL-005 | Qualquer | Roteiro de retificacao sem edicao manual | AUD-04, AUD-08 | Snapshot vigente com `statusCascata = RETIFICAR` e `divergenciaDetalhes`, sem debitos nem saldo de credito editados | Linha fica `A RETIFICAR`, motivo `Recálculo em Cascata`, campos divergentes e pares atual/correto preenchidos | `ExcelReportGeneratorService.ts`, `ExcelReportGeneratorService.test.ts` | Implementado |
+| CT-REL-006 | Qualquer | Nao vigencia prevalece sobre divergencia | AUD-06, AUD-08 | Snapshot nao vigente que ainda contenha status tecnico ou divergencia historica | Linha fica `IGNORAR - NÃO VIGENTE`, sem motivo de retificacao e com orientacao para nao transmitir retificadora | `ExcelReportGeneratorService.ts`, `ExcelReportGeneratorService.test.ts` | Implementado |
 | CT-MEI-001 | Varios | Meio cabivel por tipo de credito | `meios-para-solicitar-ou-compensar-cada-tipo-de-credito.pdf` | Catalogo de tipos | Meio correto identificado | Futuro `CreditoRulesService` | Em especificacao |
 | CT-VED-001 | Varios | Credito/debito vedado em DCOMP | `creditos-e-debitos-que-nao-podem-ser-informados-em-declaracao-de-compensacao.pdf` | Credito/debito com vedacao | Alerta ou bloqueio consultivo | Futuro `VedacaoCompensacaoService` | Em especificacao |
 | CT-DCTF-001 | Previdenciario/Nao previdenciario | Compensacao unificada antes/depois DCTFWeb | `creditos-e-debitos-que-nao-podem-ser-informados-em-declaracao-de-compensacao.pdf`, secao 3 | 16 combinacoes da tabela pratica | Sim/Nao conforme matriz | Futuro classificador | Em especificacao |
@@ -53,6 +55,7 @@ Critica.
 | CT-IMP-002 | Importacao e-CAC | Data ausente ou invalida | AUD-03; invariantes AUD-05 | Linha com campo de data normativo vazio/invalido | Campo permanece ausente/invalido em metadado; nao vira `new Date()` para calculo normativo; `dadosAusentes` registra o problema | `ExcelParser.ts`, futuro validador | Em especificacao |
 | CT-IMP-003 | Importacao e-CAC | Valor ausente versus zero importado | AUD-03; invariantes AUD-05 | Linha com valor monetario vazio e outra com valor monetario zero | Parser distingue ausente de zero importado para fins normativos e relatorio de qualidade | `ExcelParser.ts`, futuro validador | Em especificacao |
 | CT-IMP-004 | Importacao e-CAC | Metadados SELIC disponiveis na planilha | AUD-03, FX-SEL-001 a FX-SEL-008 | Aba `Processamento PERDCOMP` com `Data de Arrecadacao`, `Competencia do Credito`, processos e pagamento | Metadados sao preservados em bloco importado/rastreavel; ausencia de componente judicial ou PER original fica em `dadosAusentes` | `ExcelParser.ts`, futuro `MetadadosCreditoImportado` | Em especificacao |
+| CT-IMP-005 | Importacao e-CAC | Desempate por timestamp de transmissao | AUD-03, AUD-04 | Duas PER/DCOMPs comparaveis na mesma cadeia e no mesmo dia, com timestamps consistentes na aba `PERDCOMP Débitos` | Linhagem prevalece; entre documentos de mesma prioridade, hora/minuto/segundo desempata somente se ambos possuem timestamp; ausencia ou conflito preserva ordem da aba de processamento | `ExcelParser.ts`, `ExcelParser.test.ts` | Implementado |
 | CT-DEB-001 | Qualquer | Multa/juros por data de vencimento x transmissao original | `per_dcomp-web_-informar-debitos-para-compensacao.pdf` | Debito em atraso | Metodo registrado e alerta Sicalc quando necessario | `ModalEdicao.tsx`, `CalculoService.ts` | Em especificacao |
 | CT-DEB-002 | Debito editado | Proporcionalidade de principal/multa/juros | `per_dcomp-web_-informar-debitos-para-compensacao.md`, linhas 291 a 315 e 777 a 793; AUD-07 | Usuario reduz principal em debito com multa e juros importados | Multa/juros recalculados proporcionalmente apenas como metodo declarado; quando o caso for lancamento de oficio/compensacao parcial, validar proporcao principal/multa/juros; quando depender de acrescimos legais, alertar Sicalc | `ModalEdicao.tsx`, futuro metadado de edicao | Em especificacao |
 | CT-SIM-001 | DCOMP hipotetica | Data de transmissao auditavel | AUD-01, AUD-07; IN RFB n. 2.055/2021, art. 157 | Usuario cria DCOMP hipotetica | Simulacao registra `dataTransmissaoHipotetica`, origem da data e `dataEntregaValoracao`; nao usa apenas `new Date()` sem rastro | `ModalHipotetica.tsx`, `TimelineCascata.tsx`, `store.ts` | Em especificacao |
@@ -135,7 +138,7 @@ Novo teste real:
 
 Casos cobertos:
 
-- todas as planilhas `.xlsx` reais presentes em `Sheets/` continuam importando;
+- as fixtures `Relatorio de Analise eCAC*.xlsx`, `Relatorio de Analise e-CAC.xlsx` e `relatorio.xlsx` continuam importando; planilhas de outros modulos nao entram nesta suite;
 - a planilha real mais recente valida contagens de qualidade da importacao;
 - documento real sem cadeia relacional e reportado com motivo `sem_cadeia_relacional`;
 - DCOMP judicial real preserva `processoJudicial` e `processoHabilitacao` em `metadadosCreditoImportado`;
@@ -216,6 +219,8 @@ Arquivos de teste atualmente presentes:
 | `src/services/normativo/__tests__/selicService.real.test.ts` | `SelicService` com DCOMPs reais importadas. |
 | `src/services/normativo/__tests__/vedacaoCompensacaoService.test.ts` | Alerta DCTFWeb/previdenciario por PA do credito. |
 | `src/services/__tests__/ExcelParser.test.ts` | Parser/importPipeline com planilhas reais e metadados adicionais. |
+| `src/services/__tests__/ReportGeneratorService.test.ts` | Layout e rastreabilidade do PDF consolidado. |
+| `src/services/__tests__/ExcelReportGeneratorService.test.ts` | Estrutura, dados, formatos e perfil visual do Excel consolidado. |
 | `src/__tests__/storeImportQuality.test.ts` | Preservacao de `ImportQualityReport` no store. |
 | `src/components/__tests__/RastreabilidadePanel.test.tsx` | Painel de rastreabilidade. |
 | `src/utils/__tests__/rastreabilidade.test.ts` | Resumos de rastreabilidade. |
@@ -248,6 +253,43 @@ Claims atualizados:
 - `CT-IMP-001` esta parcialmente implementado: documentos sem cadeia relacional sao reportados em `ImportQualityReport`.
 - O pipeline de importacao compartilhado por Worker/fallback local esta coberto por `ExcelParser.test.ts`.
 - Vedacao DCTFWeb/previdenciaria existe como alerta consultivo, nao como matriz normativa completa nem bloqueio duro.
+
+## Rodada Desempate por Timestamp - 2026-06-23
+
+Validacao executada:
+
+- teste focado do parser: 1 arquivo e 18 testes aprovados;
+- regressao completa: 16 arquivos e 82 testes aprovados;
+- fixture real confirmou ordenacao por `17:29:26`, `17:45:48` e `18:13:03` para tres documentos da mesma cadeia e dia;
+- casos sinteticos cobrem timestamp disponivel, ausencia, conflito entre linhas e precedencia da relacao original-retificadora.
+
+## Rodada Relatorio Excel Consolidado - 2026-06-22
+
+Validacao executada:
+
+- teste focado do exportador: 1 arquivo e 9 testes aprovados;
+- regressao completa: 16 arquivos e 75 testes aprovados;
+- `npm run lint`, `npm run build` e `git diff --check` aprovados;
+- workbook representativo serializado, reaberto e inspecionado nas sete abas.
+
+Casos cobertos em `ExcelReportGeneratorService.test.ts`:
+
+- ordem e existencia das sete abas;
+- consolidacao de multiplas simulacoes;
+- roteiro de `Recálculo em Cascata` sem edicao manual;
+- motivos de edicao manual de debitos e saldo de creditos;
+- precedencia de `IGNORAR - NÃO VIGENTE` sobre status de retificacao;
+- cabecalhos cinza para valor atual e verde para valor correto;
+- datas, competencias, moedas, percentuais, CNPJ e identificadores como tipos Excel apropriados;
+- fonte Segoe UI 11, cabecalho `#00B4FF`, bordas, alinhamento, autofiltro, gridlines ocultas e congelamento em `B5`;
+- formulas `SUBTOTAL` da linha 2 com ranges ate a ultima linha do Excel;
+- snapshots antigos sem SELIC, status consultivo ou rastreabilidade;
+- expansao de valores rastreados e fontes normativas na aba `Evidencias`.
+
+Comportamento inesperado tratado durante a regressao:
+
+- suites reais selecionavam qualquer `.xlsx` de `Sheets/`, incluindo planilhas de outros modulos sem as abas e-CAC;
+- a selecao passou a aceitar somente nomes conhecidos de relatorio de analise e-CAC, e `selicService.real.test.ts` passou a reutilizar o parse em `beforeAll`, sem alterar o parser nem o comportamento da aplicacao.
 
 ### Rodada de Especificacao de Fixtures SELIC - 2026-06-07
 

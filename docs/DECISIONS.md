@@ -5,8 +5,8 @@ Este documento registra decisoes arquiteturais relevantes. Nao reverta estas dec
 ## 1. Tratamento e Ordenacao da Cadeia Relacional
 
 - **Contexto:** DCOMPs retificadoras substituem originais, e a RFB pode trazer documentos com mesma data de transmissao.
-- **Decisao:** Calcular profundidade de linhagem por mapa de retificacao/cancelamento, mantendo predecessores antes de sucessores.
-- **Consequencia:** A tabela de cascata preserva ordem familiar/contabil mais robusta que uma ordenacao simples por data.
+- **Decisao:** Calcular profundidade de linhagem por mapa de retificacao/cancelamento, mantendo predecessores antes de sucessores. Em empate de data entre documentos comparaveis, usar o timestamp consistente da coluna `Data de Transmissão` da aba `PERDCOMP Débitos` somente quando ambos os documentos o possuirem; caso contrario, preservar a ordem fisica da aba `Processamento PERDCOMP`.
+- **Consequencia:** A tabela de cascata preserva ordem familiar/contabil e ganha precisao de hora, minuto e segundo sem substituir a data normativa nem inferir posicao para documentos sem timestamp.
 
 ## 2. Tratamento de Documentos Bloqueados
 
@@ -50,11 +50,11 @@ Este documento registra decisoes arquiteturais relevantes. Nao reverta estas dec
 - **Decisao:** Gerar PDF a partir de `simulacoesSalvas`.
 - **Consequencia:** O relatorio reflete intencao explicita de exportacao.
 
-## 9. Exportacao Excel Adiada
+## 9. Exportacao Excel Auditavel por Simulacoes Salvas
 
-- **Contexto:** PDF cobre o fluxo atual, enquanto Excel exige desenho proprio de abas, colunas e rastreabilidade.
-- **Decisao:** Manter exportacao Excel no backlog.
-- **Consequencia:** Quando implementada, deve seguir abas minimas `Resumo`, `Premissas`, `Cascata`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`.
+- **Contexto:** O usuario precisa de dados consolidados, filtraveis e auditaveis sem recalcular valores tributarios dentro da planilha.
+- **Decisao:** Gerar Excel exclusivamente de `simulacoesSalvas`, com `exceljs` carregado dinamicamente e sete abas. `Projeção Retificações Cadeias` e a primeira aba e apresenta cada valor monetario em pares `Atual`/`Correto`, alem de status operacional, campos a retificar, motivo e orientacao. As demais abas sao `Resumo`, `Premissas`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`. O perfil visual deriva de `Sheets/Relatorio de Analise eCAC_06.06.26.xlsx`.
+- **Consequencia:** O workbook preserva valores tipados, campos `...Original`, rastreabilidade e fontes; usa cinza para cabecalhos de valores atuais e verde para valores corretos. Documentos nao vigentes aparecem como `IGNORAR - NÃO VIGENTE`, e divergencias de documentos vigentes podem gerar `A RETIFICAR` por edicao manual de debitos, edicao manual de saldo de creditos ou recalculo em cascata. `xlsx` continua restrito a importacao e o arquivo de referencia nao e necessario em runtime.
 
 ## 10. Persistencia Local em IndexedDB
 

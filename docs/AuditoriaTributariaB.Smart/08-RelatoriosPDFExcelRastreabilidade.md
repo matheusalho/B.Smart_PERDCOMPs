@@ -12,7 +12,7 @@ Alta.
 
 - Relatorio PDF consolidado implementado.
 - PDF ja possui bloco inicial de premissas/metodologia e alertas globais.
-- Exportacao Excel esta no backlog, com prazo a definir.
+- Relatorio Excel consolidado implementado com sete abas auditaveis e formatacao visual baseada no relatorio e-CAC.
 
 ### Rodada de Auditoria de 2026-06-07
 
@@ -60,20 +60,36 @@ Implementado:
 Lacunas remanescentes:
 
 - Revisar ergonomia visual do PDF em cadeias grandes, pois as celulas passam a ser mais densas.
-- Levar o mesmo contrato para exportacao Excel futura.
 - Ampliar granularidade para todos os metadados de simulacao quando DCOMP hipotetica ganhar data auditavel completa.
+
+### Atualizacao de Estado - Excel de 2026-06-22
+
+Implementado:
+
+- `src/services/ExcelReportGeneratorService.ts` gera o workbook exclusivamente a partir de `simulacoesSalvas`, sem recalcular valores tributarios.
+- O arquivo possui as abas `Projeção Retificações Cadeias`, `Resumo`, `Premissas`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`, nessa ordem.
+- `Projeção Retificações Cadeias` e o roteiro operacional: cada campo monetario tem coluna `Atual` e `Correto`, o status informa a acao, e as colunas de campos, motivo e orientacao explicam o que transmitir.
+- Valores atuais usam cabecalho cinza `#C8C8C8`; valores corretos usam cabecalho verde `#64C864`.
+- Indicador de credito, status tecnico e IDs internos permanecem no workbook para auditoria, mas ficam ocultos por padrao na primeira aba para reduzir ruido operacional.
+- Documentos nao vigentes recebem `IGNORAR - NÃO VIGENTE` antes de qualquer classificacao de retificacao. `Recálculo em Cascata` permanece motivo de `A RETIFICAR` mesmo sem edicao manual quando o snapshot registra a divergencia.
+- Datas, competencias, moedas, percentuais, CNPJ e identificadores sao gravados como tipos Excel apropriados.
+- O perfil visual codifica o padrao de `Sheets/Relatorio de Analise eCAC_06.06.26.xlsx`: Segoe UI 11, margem em A, totais `SUBTOTAL` na linha 2, cabecalho azul na linha 4, dados na linha 5, filtros, bordas, gridlines ocultas e congelamento em `B5`.
+- `exceljs` e carregado dinamicamente apenas quando o usuario aciona `Exportar Excel`; `xlsx` permanece exclusivo da importacao.
+- Snapshots antigos sem SELIC, status consultivo ou `rastreabilidadeValores` continuam exportaveis, com campos indisponiveis em branco e evidencia explicita da ausencia.
 
 ## Codigo Relacionado
 
 - `src/services/ReportGeneratorService.ts`
+- `src/services/ExcelReportGeneratorService.ts`
 - `src/components/TimelineCascata.tsx`
 - `src/components/CascataKpis.tsx`
+- `src/App.tsx`
 
 ## Fragilidades Possiveis
 
 - Relatorio pode omitir metodologia de calculo.
 - Pode haver confusao entre saldo original restante anterior e novo.
-- Exportacao futura em Excel pode perder rastreabilidade se nao for planejada a partir da matriz de campos.
+- Snapshots antigos podem gerar lacunas em SELIC, status e evidencias; o relatorio deve manter essas ausencias explicitas, sem inferir dados.
 - DCOMPs hipoteticas precisam ser claramente identificadas.
 
 ## Achados da Rodada
@@ -130,18 +146,49 @@ Lacunas remanescentes:
 - Diretriz:
   - Adicionar no futuro bloco `auditoriaCalculo` ou `metadadosRelatorio`, preservado no snapshot da simulacao salva.
 
+### ACH-026 - Excel consolidado preserva snapshots e rastreabilidade sem recalculo
+
+- Objeto relacionado: AUD-05, AUD-08, AUD-09.
+- Criticidade: Alta.
+- Evidencia tecnica:
+  - `src/services/ExcelReportGeneratorService.ts`.
+  - `src/services/__tests__/ExcelReportGeneratorService.test.ts`.
+  - `src/App.tsx`.
+- Descricao:
+  - O exportador consolida simulacoes salvas em sete abas e nao consulta o estado transitivo das cadeias para substituir os snapshots.
+  - Valores originais, recalculados e deltas permanecem em colunas separadas; evidencias registram rastreabilidade por valor e fontes normativas disponiveis.
+  - O perfil visual e-CAC e os formatos Excel sao validados por teste automatizado.
+- Risco residual:
+  - Snapshots antigos podem nao conter metadados opcionais criados em versoes posteriores.
+- Diretriz:
+  - Manter compatibilidade defensiva e nao reconstruir retroativamente dados ausentes.
+
+### ACH-027 - Roteiro operacional explicita o campo, o valor correto e a causa da retificacao
+
+- Objeto relacionado: AUD-04, AUD-05, AUD-06, AUD-08, AUD-09.
+- Criticidade: Alta.
+- Evidencia tecnica:
+  - `src/services/ExcelReportGeneratorService.ts`.
+  - `src/services/__tests__/ExcelReportGeneratorService.test.ts`.
+- Descricao:
+  - A antiga aba `Cascata` nao evidenciava a divergencia real em simulacoes sem edicao manual porque exportava o mesmo valor mutavel como original e recalculado.
+  - A primeira aba agora usa `divergenciaDetalhes.esperado/calculado`, campos `...Original` e saldos historico/calculado ja preservados no snapshot para formar pares `Atual`/`Correto`.
+  - O status operacional separa `A RETIFICAR`, `IGNORAR - NÃO VIGENTE`, bloqueios, hipoteticas e documentos sem retificacao.
+- Diretriz:
+  - Nao criar regra tributaria dentro do Excel; o roteiro deve somente traduzir o snapshot salvo em instrucao operacional rastreavel.
+
 ## Perguntas de Auditoria
 
 - Quais campos sao indispensaveis para uso por advogado tributarista?
 - O relatorio deve declarar se o calculo e normativo validado ou estimativa?
 - Como evidenciar fonte normativa por tipo de credito?
-- Quais abas devem existir na exportacao Excel futura?
+- Quais novos metadados de DCOMP hipotetica devem ser preservados em snapshots futuros?
 
 ## Possiveis Solucoes
 
 - Criar secao de premissas e metodologia no PDF.
 - Incluir legenda de tipos de valor: importado, calculado, simulado.
-- Planejar Excel com abas: resumo, cascata, debitos, divergencias, premissas, evidencias.
+- Manter o Excel com sete abas auditaveis e a primeira aba orientada a retificacoes; ampliar colunas somente quando o snapshot passar a preservar novo metadado.
 - Gerar identificadores de caso de auditoria para rastrear simulacoes.
 
 ## Desenho Tecnico Proposto
@@ -162,15 +209,15 @@ Renomear secoes conceituais:
 - `Valores importados/anteriores e calculados historicos`, em vez de `Valores Anteriores (Originais)`, quando a tabela misturar campos importados e calculados.
 - `Valores simulados/recalculados`, em vez de `Novos Valores Corretos`, ate que cada resultado traga `statusCalculo = normativo`.
 
-### Excel futuro
+### Excel implementado
 
-Planejar exportacao com abas minimas:
+Exportacao implementada com abas minimas:
 
 | Aba | Conteudo | Observacao de auditoria |
 | --- | --- | --- |
+| `Projeção Retificações Cadeias` | status operacional, campos a retificar, motivo, orientacao e pares atual/correto por PER/DCOMP | `A RETIFICAR` exige retificadora; nao vigente deve ser ignorada. |
 | `Resumo` | empresa, cadeias exportadas, data de emissao, versao da regra, status geral | Deve indicar se ha estimativas ou dados insuficientes. |
 | `Premissas` | fontes normativas, tabela SELIC, hipoteses, escopo negativo de IPI, status de calculo | Nao pode ser opcional. |
-| `Cascata` | PER/DCOMP, status, vigencia, saldo importado, saldo calculado, metodo, delta | Separar origem de cada campo. |
 | `Debitos` | debitos originais, simulados, deltas, principal/multa/juros | Preservar `...Original`. |
 | `SELIC` | tipo de credito, termo inicial/final, taxa, dados usados, dados ausentes | So preencher como normativo se regra e dados estiverem completos. |
 | `StatusVigencia` | classificacao de vigencia, bloqueio, cancelabilidade e vedacao normativa | Deve usar o mesmo catalogo da UI/PDF. |
@@ -198,8 +245,8 @@ type MetadadosAuditoriaRelatorio = {
 ## Criterios de Aceite
 
 - PDF continua passando no fluxo funcional.
-- Exportacao Excel futura preserva campos originais e deltas.
+- Exportacao Excel preserva campos originais e deltas.
 - Relatorio explica qualquer estimativa ou regra nao validada.
-- Nenhum relatorio usa `Correto` para valor calculado por estimativa operacional.
+- No roteiro Excel, `Correto` identifica o valor esperado preservado no snapshot; status, premissas e evidencias devem explicitar quando o metodo for estimativo ou tiver dados insuficientes.
 - Cada valor recalculado informa origem/metodo ou aponta explicitamente que o metadado ainda nao existe.
 - DCOMP hipotetica aparece como simulada e estimada, salvo quando houver calculo normativo completo.

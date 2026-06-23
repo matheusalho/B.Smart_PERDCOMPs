@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -6,8 +6,13 @@ import { parseExcelFile } from '../../ExcelParser';
 import { calcularSelicRastreavel } from '../selicService';
 
 const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
+let latestResult: ReturnType<typeof parseExcelFile>;
 
 describe('SelicService - dados reais importados', () => {
+  beforeAll(() => {
+    latestResult = parseExcelFile(readRealSheet(latestSheetFile()));
+  });
+
   it('calcula SELIC normativa rastreavel para saldo negativo IRPJ com taxa injetada e dados suficientes', () => {
     const dcomp = findDcomp('06251.86776.210720.1.7.02-1771');
 
@@ -144,8 +149,7 @@ describe('SelicService - dados reais importados', () => {
 });
 
 function findDcomp(dcompId: string) {
-  const result = parseExcelFile(readRealSheet(latestSheetFile()));
-  const dcomp = result.cadeias
+  const dcomp = latestResult.cadeias
     .flatMap((cadeia) => cadeia.dcomps)
     .find((item) => item.id === dcompId);
 
@@ -167,10 +171,18 @@ function readRealSheet(fileName: string): ArrayBuffer {
 
 function latestSheetFile(): string {
   return readdirSync(sheetsDir)
-    .filter((file) => file.toLowerCase().endsWith('.xlsx') && !file.startsWith('~$'))
+    .filter(isEcacFixture)
     .map((file) => ({
       file,
       mtime: statSync(resolve(sheetsDir, file)).mtimeMs,
     }))
     .sort((a, b) => b.mtime - a.mtime)[0].file;
+}
+
+function isEcacFixture(fileName: string): boolean {
+  const normalized = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const isEcacReport = normalized === 'relatorio.xlsx' ||
+    normalized.startsWith('relatorio de analise ecac') ||
+    normalized.startsWith('relatorio de analise e-cac');
+  return isEcacReport && normalized.endsWith('.xlsx') && !fileName.startsWith('~$');
 }

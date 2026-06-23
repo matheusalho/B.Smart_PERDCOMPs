@@ -3,9 +3,9 @@ import { DashboardCadeias } from './components/DashboardCadeias';
 import { UploadComponent } from './components/UploadComponent';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { useStore } from './store';
-import { Sun, Moon, RotateCcw, FileText, Trash2, Database } from 'lucide-react';
+import { Sun, Moon, RotateCcw, FileText, FileSpreadsheet, Trash2, Database } from 'lucide-react';
 import { generatePdfReport } from './services/ReportGeneratorService';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 
 function App() {
   const cadeias = useStore(state => state.cadeias);
@@ -20,12 +20,29 @@ function App() {
   }, [simulacoesSalvas]);
 
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+
+    setIsExportingExcel(true);
+    try {
+      const { generateExcelReport } = await import('./services/ExcelReportGeneratorService');
+      await generateExcelReport(simulacoesSalvas, Object.values(cadeias), empresa);
+      toast.success('Relatório Excel exportado.');
+    } catch (error) {
+      console.error('Falha ao exportar o relatório Excel:', error);
+      toast.error('Não foi possível exportar o relatório Excel.');
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   return (
     <>
@@ -97,6 +114,15 @@ function App() {
                     title="Exportar Relatório PDF com todas as simulações"
                   >
                     <FileText size={16} /> Relatório Consolidado
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', minWidth: '138px' }}
+                    onClick={handleExportExcel}
+                    disabled={isExportingExcel}
+                    title="Exportar Relatório Consolidado de Simulações em Excel"
+                  >
+                    <FileSpreadsheet size={16} /> {isExportingExcel ? 'Gerando...' : 'Exportar Excel'}
                   </button>
                   <button 
                     className="btn btn-ghost text-danger" 

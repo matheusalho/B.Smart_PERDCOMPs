@@ -92,6 +92,7 @@ export interface DCOMP {
   id: string; // Número do PER/DCOMP
   dataTransmissaoOriginal: Date; // A data que vale para cronologia e SELIC
   dataTransmissao: Date; // Data real de transmissão (pode ser retificadora)
+  dataHoraTransmissaoImportada?: Date; // Timestamp da aba PERDCOMP Débitos, usado somente como desempate cronológico
   tipoDocumento: string; // Declaração de Compensação, etc.
   situacao: SituaçãoProcessamento;
   situacaoDetalhada?: string;

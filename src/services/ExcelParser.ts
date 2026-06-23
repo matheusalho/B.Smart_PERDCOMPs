@@ -11,6 +11,11 @@ import { classificarStatusProcessamento } from './normativo/statusRules';
 
 type ExcelRow = Record<string, unknown>;
 
+type TimestampImportState = {
+  timestamp?: Date;
+  consistente: boolean;
+};
+
 const firstValue = (...values: unknown[]): unknown => (
   values.find(value => value !== undefined && value !== null && value !== '')
 );
@@ -59,13 +64,16 @@ const parseExcelDate = (excelDate: unknown): Date => {
   if (typeof excelDate === 'string') {
      // Pode estar em string ISO ou outro formato. Tentaremos fazer parse
      // Muitas vezes vem DD/MM/AAAA ou YYYY-MM-DD HH:mm:ss
-     const parts = excelDate.split(' ');
+     const parts = excelDate.trim().split(/\s+/);
      if (parts[0].includes('/')) {
-         const dParts = parts[0].split('/');
-         if (dParts.length === 3) {
-             const [day, month, year] = dParts.map(Number);
-             return new Date(year, month - 1, day);
-         }
+       const dParts = parts[0].split('/');
+       if (dParts.length === 3) {
+         const [day, month, year] = dParts.map(Number);
+         const [hours = 0, minutes = 0, seconds = 0] = (parts[1] ?? '')
+           .split(':')
+           .map(Number);
+         return new Date(year, month - 1, day, hours, minutes, seconds);
+       }
      }
      if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
        const [year, month, day] = parts[0].split('-').map(Number);
@@ -74,6 +82,48 @@ const parseExcelDate = (excelDate: unknown): Date => {
      return new Date(excelDate);
   }
   return new Date();
+};
+
+const registrarTimestampTransmissao = (
+  timestamps: Map<string, TimestampImportState>,
+  numeroDcomp: string,
+  timestamp: Date | undefined,
+): void => {
+  const atual = timestamps.get(numeroDcomp);
+
+  if (!atual) {
+    timestamps.set(numeroDcomp, {
+      timestamp,
+      consistente: Boolean(timestamp),
+    });
+    return;
+  }
+
+  if (
+    !timestamp ||
+    !atual.timestamp ||
+    timestamp.getTime() !== atual.timestamp.getTime()
+  ) {
+    atual.consistente = false;
+  }
+};
+
+const isSameCivilDate = (a: Date, b: Date): boolean => (
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate()
+);
+
+const getTimestampTransmissaoConsistente = (
+  timestamps: Map<string, TimestampImportState>,
+  numeroDcomp: string,
+  dataTransmissaoProcessamento: Date,
+): Date | undefined => {
+  const estado = timestamps.get(numeroDcomp);
+  if (!estado?.consistente || !estado.timestamp) return undefined;
+  if (!isSameCivilDate(estado.timestamp, dataTransmissaoProcessamento)) return undefined;
+
+  return new Date(estado.timestamp.getTime());
 };
 
 const formatPeriodoExcel = (excelVal: unknown): string => {
@@ -176,10 +226,17 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
   // A aba de débito tem: "Nº do Recibo PER/DCOMP" ou "Número do PER/DCOMP"?
   // A coluna real encontrada no debug: "Número do PER/DCOMP"
   const debitosPorDcomp: Record<string, DebitoOficial[]> = {};
+  const timestampsTransmissaoPorDcomp = new Map<string, TimestampImportState>();
   
   rowsDebitos.forEach((row, index) => {
     const numeroDcomp = toStringValue(row['Número do PER/DCOMP']);
     if (!numeroDcomp) return;
+
+    registrarTimestampTransmissao(
+      timestampsTransmissaoPorDcomp,
+      numeroDcomp,
+      toOptionalDateValue(row['Data de Transmissão']),
+    );
 
     if (!debitosPorDcomp[numeroDcomp]) {
       debitosPorDcomp[numeroDcomp] = [];
@@ -260,10 +317,22 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
     // Data Transmissão, Data de Transmissão do Perdcomp, Retificado ou Cancelado Por, 
     // Perdcomp Anterior com Detalhamento de Crédito, Tipo de Crédito, Valor Total do Crédito Detalhado, etc.
     
+    const dataTransmissaoOriginal = parseExcelDate(
+      firstValue(row['Data Transmissão'], row['Data de Transmissão do Perdcomp']),
+    );
+    const dataTransmissao = parseExcelDate(
+      firstValue(row['Data de Transmissão do Perdcomp'], row['Data Transmissão']),
+    );
+
     const dcomp: DCOMP = {
       id: numeroDcomp,
-      dataTransmissaoOriginal: parseExcelDate(firstValue(row['Data Transmissão'], row['Data de Transmissão do Perdcomp'])),
-      dataTransmissao: parseExcelDate(firstValue(row['Data de Transmissão do Perdcomp'], row['Data Transmissão'])),
+      dataTransmissaoOriginal,
+      dataTransmissao,
+      dataHoraTransmissaoImportada: getTimestampTransmissaoConsistente(
+        timestampsTransmissaoPorDcomp,
+        numeroDcomp,
+        dataTransmissao,
+      ),
       tipoDocumento: toStringValue(firstValue(row['Tipo do Documento'], row['Tipo de Documento'])),
       situacao: toStringValue(row['Situação'], 'Pendente'),
       situacaoDetalhada: toOptionalString(row['Situação Detalhada']),
@@ -304,6 +373,23 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
 
   // Ajustar o número da DCOMP inicial e ordenar cada cadeia
   const cadeias: CadeiaRelacional[] = Object.values(cadeiasMap).map(cadeia => {
+    const ordemImportacaoPorId = new Map(
+      cadeia.dcomps.map((dcomp, index) => [dcomp.id, index]),
+    );
+    const compararCronologia = (a: DCOMP, b: DCOMP): number => {
+      const dataDiff = a.dataTransmissao.getTime() - b.dataTransmissao.getTime();
+      if (dataDiff !== 0) return dataDiff;
+
+      if (a.dataHoraTransmissaoImportada && b.dataHoraTransmissaoImportada) {
+        const timestampDiff =
+          a.dataHoraTransmissaoImportada.getTime() -
+          b.dataHoraTransmissaoImportada.getTime();
+        if (timestampDiff !== 0) return timestampDiff;
+      }
+
+      return (ordemImportacaoPorId.get(a.id) ?? 0) -
+        (ordemImportacaoPorId.get(b.id) ?? 0);
+    };
     
     // Algoritmo de Linhagens: Agrupar por Ancestral (Origem) e ordenar blocos
     // 1. Mapeamento de quem retifica quem
@@ -354,7 +440,7 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
       group.sort((a, b) => {
         const depthDiff = getDepth(a.id) - getDepth(b.id);
         if (depthDiff !== 0) return depthDiff;
-        return a.dataTransmissao.getTime() - b.dataTransmissao.getTime();
+        return compararCronologia(a, b);
       });
       
       const dataRefOriginal = group[0].dataTransmissao;
@@ -385,14 +471,14 @@ export const parseExcelFile = (data: ArrayBuffer): { cadeias: CadeiaRelacional[]
     
     if (rootGroupIndex === -1) {
       // Fallback: Pega a que tem mais dependentes ou simplesmente a primeira após ordenação
-      groups.sort((a, b) => a[0].dataTransmissao.getTime() - b[0].dataTransmissao.getTime());
+      groups.sort((a, b) => compararCronologia(a[0], b[0]));
       rootGroupIndex = 0;
     }
 
     const rootGroup = groups.splice(rootGroupIndex, 1)[0];
 
     // 5. Ordenar os demais blocos cronologicamente baseados na Data de sua Ancestral
-    groups.sort((a, b) => a[0].dataTransmissao.getTime() - b[0].dataTransmissao.getTime());
+    groups.sort((a, b) => compararCronologia(a[0], b[0]));
 
     // 6. Achatamento (Flatten): Raiz sempre no topo
     cadeia.dcomps = [...rootGroup, ...groups.flat()];

@@ -1,20 +1,21 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import * as XLSX from 'xlsx';
 
 import { parseExcelFile } from '../ExcelParser';
 import { processExcelBuffer } from '../importPipeline';
 
 const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
 const sheetFiles = readdirSync(sheetsDir)
-  .filter((file) => file.toLowerCase().endsWith('.xlsx') && !file.startsWith('~$'))
+  .filter(isEcacFixture)
   .sort();
 
 describe('ExcelParser - planilhas reais e-CAC', () => {
   let latestResult: ReturnType<typeof parseExcelFile>;
 
   beforeAll(() => {
-    latestResult = parseExcelFile(readRealSheet(latestSheetFile()));
+    latestResult = parseExcelFile(readRealSheet(referenceSheetFile()));
   });
 
   it.each(sheetFiles)('continua importando a planilha real %s', (fileName) => {
@@ -90,6 +91,32 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
     expect(formatLocalDate(dcomp?.dataTransmissaoOriginal)).toBe('19/04/2016');
   });
 
+  it('preserva o timestamp consistente da aba PERDCOMP Debitos', () => {
+    const dcomp = findDcomp(latestResult.cadeias, '22718.81103.161024.1.3.02-6299');
+
+    expect(formatLocalDateTime(dcomp?.dataHoraTransmissaoImportada)).toBe(
+      '16/10/2024 16:26:22',
+    );
+  });
+
+  it('usa os horarios reais para desempatar documentos da mesma cadeia e dia', () => {
+    const ids = new Set([
+      '31737.53037.130824.1.7.02-2004',
+      '10991.45632.130824.1.7.02-1578',
+      '20923.60398.130824.1.7.02-2217',
+    ]);
+    const cadeia = latestResult.cadeias.find((item) =>
+      item.dcomps.some((dcomp) => ids.has(dcomp.id)),
+    );
+
+    expect(cadeia?.dcomps.filter((dcomp) => ids.has(dcomp.id)).map((dcomp) => dcomp.id))
+      .toEqual([
+        '10991.45632.130824.1.7.02-1578',
+        '31737.53037.130824.1.7.02-2004',
+        '20923.60398.130824.1.7.02-2217',
+      ]);
+  });
+
   it('anexa classificacoes consultivas de credito e status sem bloquear a importacao', () => {
     const dcompJudicial = findDcomp(latestResult.cadeias, '32552.06818.210225.1.3.57-2529');
     const dcompHomologada = findDcomp(latestResult.cadeias, '06251.86776.210720.1.7.02-1771');
@@ -123,7 +150,7 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
 
   it('executa o pipeline usado pelo worker com a planilha real mais recente', () => {
     const { cadeias: cadeiasRecalculadas, empresa, importQualityReport } =
-      processExcelBuffer(readRealSheet(latestSheetFile()));
+      processExcelBuffer(readRealSheet(referenceSheetFile()));
 
     expect(cadeiasRecalculadas).toHaveLength(latestResult.cadeias.length);
     expect(totalDcomps(cadeiasRecalculadas)).toBe(totalDcomps(latestResult.cadeias));
@@ -132,6 +159,91 @@ describe('ExcelParser - planilhas reais e-CAC', () => {
     expect(importQualityReport.dcompsCarregadas).toBe(
       latestResult.importQualityReport.dcompsCarregadas,
     );
+  });
+});
+
+describe('ExcelParser - desempate cronologico por timestamp', () => {
+  it('ordena linhagens independentes do mesmo dia pelo timestamp dos debitos', () => {
+    const result = parseExcelFile(createOrderingWorkbook({
+      processingRows: [
+        processingRow('RAIZ', '01/01/2024'),
+        processingRow('MAIS-TARDE', '02/01/2024', 'RAIZ'),
+        processingRow('MAIS-CEDO', '02/01/2024', 'RAIZ'),
+      ],
+      debitRows: [
+        debitRow('MAIS-TARDE', '02/01/2024 11:30:00'),
+        debitRow('MAIS-CEDO', '02/01/2024 09:15:00'),
+      ],
+    }));
+
+    expect(result.cadeias[0].dcomps.map((dcomp) => dcomp.id)).toEqual([
+      'RAIZ',
+      'MAIS-CEDO',
+      'MAIS-TARDE',
+    ]);
+  });
+
+  it('preserva a ordem da aba de processamento quando um timestamp nao esta disponivel', () => {
+    const result = parseExcelFile(createOrderingWorkbook({
+      processingRows: [
+        processingRow('RAIZ', '01/01/2024'),
+        processingRow('SEM-TIMESTAMP', '02/01/2024', 'RAIZ'),
+        processingRow('COM-TIMESTAMP', '02/01/2024', 'RAIZ'),
+      ],
+      debitRows: [
+        debitRow('COM-TIMESTAMP', '02/01/2024 09:15:00'),
+      ],
+    }));
+
+    expect(result.cadeias[0].dcomps.map((dcomp) => dcomp.id)).toEqual([
+      'RAIZ',
+      'SEM-TIMESTAMP',
+      'COM-TIMESTAMP',
+    ]);
+  });
+
+  it('ignora timestamps conflitantes e preserva a ordem da aba de processamento', () => {
+    const result = parseExcelFile(createOrderingWorkbook({
+      processingRows: [
+        processingRow('RAIZ', '01/01/2024'),
+        processingRow('CONFLITANTE', '02/01/2024', 'RAIZ'),
+        processingRow('CONSISTENTE', '02/01/2024', 'RAIZ'),
+      ],
+      debitRows: [
+        debitRow('CONFLITANTE', '02/01/2024 11:30:00'),
+        debitRow('CONFLITANTE', '02/01/2024 12:30:00'),
+        debitRow('CONSISTENTE', '02/01/2024 09:15:00'),
+      ],
+    }));
+
+    expect(result.cadeias[0].dcomps.map((dcomp) => dcomp.id)).toEqual([
+      'RAIZ',
+      'CONFLITANTE',
+      'CONSISTENTE',
+    ]);
+    expect(findDcomp(result.cadeias, 'CONFLITANTE')?.dataHoraTransmissaoImportada)
+      .toBeUndefined();
+  });
+
+  it('mantem a original antes da retificadora independentemente do horario', () => {
+    const original = processingRow('ORIGINAL', '02/01/2024');
+    original['Retificado ou Cancelado Por'] = 'RETIFICADORA';
+
+    const result = parseExcelFile(createOrderingWorkbook({
+      processingRows: [
+        original,
+        processingRow('RETIFICADORA', '02/01/2024'),
+      ],
+      debitRows: [
+        debitRow('ORIGINAL', '02/01/2024 11:30:00'),
+        debitRow('RETIFICADORA', '02/01/2024 09:15:00'),
+      ],
+    }));
+
+    expect(result.cadeias[0].dcomps.map((dcomp) => dcomp.id)).toEqual([
+      'ORIGINAL',
+      'RETIFICADORA',
+    ]);
   });
 });
 
@@ -144,13 +256,24 @@ function readRealSheet(fileName: string): ArrayBuffer {
   ) as ArrayBuffer;
 }
 
-function latestSheetFile(): string {
+function referenceSheetFile(): string {
+  const canonicalFixture = 'Relatorio de Analise eCAC_06.06.26.xlsx';
+  if (sheetFiles.includes(canonicalFixture)) return canonicalFixture;
+
   return sheetFiles
     .map((file) => ({
       file,
       mtime: statSync(resolve(sheetsDir, file)).mtimeMs,
     }))
     .sort((a, b) => b.mtime - a.mtime)[0].file;
+}
+
+function isEcacFixture(fileName: string): boolean {
+  const normalized = fileName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const isEcacReport = normalized === 'relatorio.xlsx' ||
+    normalized.startsWith('relatorio de analise ecac') ||
+    normalized.startsWith('relatorio de analise e-cac');
+  return isEcacReport && normalized.endsWith('.xlsx') && !fileName.startsWith('~$');
 }
 
 function formatLocalDate(date?: Date): string {
@@ -161,6 +284,19 @@ function formatLocalDate(date?: Date): string {
     String(date.getMonth() + 1).padStart(2, '0'),
     date.getFullYear(),
   ].join('/');
+}
+
+function formatLocalDateTime(date?: Date): string {
+  if (!date) return '';
+
+  return [
+    formatLocalDate(date),
+    [
+      String(date.getHours()).padStart(2, '0'),
+      String(date.getMinutes()).padStart(2, '0'),
+      String(date.getSeconds()).padStart(2, '0'),
+    ].join(':'),
+  ].join(' ');
 }
 
 function totalDcomps(
@@ -190,4 +326,57 @@ function findDcomp(
   return cadeias
     .flatMap((cadeia) => cadeia.dcomps)
     .find((dcomp) => dcomp.id === dcompId);
+}
+
+function createOrderingWorkbook(input: {
+  processingRows: Array<Record<string, unknown>>;
+  debitRows: Array<Record<string, unknown>>;
+}): ArrayBuffer {
+  const workbook = XLSX.utils.book_new();
+  const processingSheet = XLSX.utils.json_to_sheet(input.processingRows, { origin: 'A4' });
+  const debitSheet = XLSX.utils.json_to_sheet(input.debitRows, { origin: 'A4' });
+
+  XLSX.utils.book_append_sheet(workbook, processingSheet, 'Processamento PERDCOMP');
+  XLSX.utils.book_append_sheet(workbook, debitSheet, 'PERDCOMP Débitos');
+
+  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  return buffer as ArrayBuffer;
+}
+
+function processingRow(
+  id: string,
+  dataTransmissao: string,
+  detalhamentoAnterior = '',
+): Record<string, unknown> {
+  return {
+    'Número Perdcomp': id,
+    'Retificado ou Cancelado Por': '',
+    'Detalhado Perdcomp Anterior': detalhamentoAnterior,
+    'Data Transmissão': dataTransmissao,
+    'Data de Transmissão do Perdcomp': dataTransmissao,
+    'Indicador de Crédito': '1',
+    'Tipo de Crédito': 'Pagamento Indevido ou a Maior',
+    'Tipo do Documento': 'Decl. Compensação',
+    Situação: 'Em análise',
+    'Detentor do Crédito': 'Empresa Teste',
+    'Período de Apuração': '01/2024',
+    'Valor Total do Crédito': 1000,
+    'Valor do Crédito na Data de Transmissão': 1000,
+    'Valor Utilizado no Perdcomp': 100,
+    'IDs da Cadeia Relacional': 'CADEIA-TESTE',
+  };
+}
+
+function debitRow(id: string, timestamp: string): Record<string, unknown> {
+  return {
+    'Número do PER/DCOMP': id,
+    'Data de Transmissão': timestamp,
+    'Código de Receita': '0001-01',
+    'Período de Apuração do Débito': '01/2024',
+    'Data de Vencimento Tributo Quota': '31/01/2024',
+    'Valor Principal': 100,
+    'Valor Multa': 0,
+    'Valor Juros': 0,
+    'Valor Total': 100,
+  };
 }

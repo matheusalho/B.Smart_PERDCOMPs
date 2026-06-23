@@ -1,6 +1,6 @@
 # Relatorio de Continuidade - Auditoria Tributaria e Implementacao Normativa
 
-Atualizado em: 2026-06-14, apos Passo 1 de rastreabilidade por valor
+Atualizado em: 2026-06-23, apos desempate cronologico por timestamp de transmissao
 
 ## Objetivo
 
@@ -10,22 +10,24 @@ Permitir que outra sessao retome a auditoria tributaria e a implementacao normat
 
 - Repositorio: `C:\Projetos\B.Smart_PERDCOMPs\bsmart-perdcomp`
 - Branch atual: `main`
-- HEAD verificado: `a305029 docs: update project README`
+- HEAD verificado antes desta implementacao: `729a275 Versao Funcional 1.0.1`
 - Checkpoint tecnico recente: `b4c779a chore: checkpoint current PERDCOMP state`
 - Handoff detalhado do checkpoint: `docs/AuditoriaTributariaB.Smart/13-RelatorioHandoffCheckpointB4C779A.md`
-- Git status em 2026-06-14: `13-RelatorioHandoffCheckpointB4C779A.md`, `testSelic.ts` e `tmp/` estavam nao rastreados antes desta atualizacao documental.
+- `testSelic.ts` e `tmp/` permanecem artefatos locais nao rastreados e fora do escopo.
 - Passo 1 implementado nesta rodada: rastreabilidade de origem/metodo/status por valor em snapshots salvos e celulas de PDF.
+- Relatorio Excel implementado nesta rodada: sete abas auditaveis, dados tipados, perfil visual e-CAC e download sob demanda.
 - Regra central: nenhum campo `...Original` pode ser sobrescrito, recalculado ou contaminado.
 
 ## Validacao Mais Recente
 
-Executada em 2026-06-14:
+Executada em 2026-06-23:
 
 | Comando | Resultado |
 | --- | --- |
-| `npm test` | Aprovado: 15 arquivos de teste, 62 testes. |
-| `npm run lint` | Pendente nesta rodada apos documentacao; executar antes de commit/fechamento definitivo. |
-| `npm run build` | Pendente nesta rodada apos documentacao; executar antes de commit/fechamento definitivo. |
+| `npm test` | Aprovado: 16 arquivos de teste, 82 testes. |
+| `npm run lint` | Aprovado. |
+| `npm run build` | Aprovado, com aviso nao bloqueante de chunks grandes; Excel ficou em chunk dinamico proprio. |
+| `git diff --check` | Aprovado. |
 
 ## Invariantes
 
@@ -43,6 +45,7 @@ Executada em 2026-06-14:
 ### Importacao e Qualidade
 
 - `src/services/ExcelParser.ts` preserva metadados importados e retorna `ImportQualityReport`.
+- `ExcelParser.ts` tambem preserva `dataHoraTransmissaoImportada` a partir da aba `PERDCOMP Débitos` e a usa para desempatar documentos do mesmo dia, sem superar a relacao de linhagem.
 - `src/services/importPipeline.ts` centraliza parse/recalculo inicial.
 - `src/workers/excelWorker.ts` usa o pipeline compartilhado.
 - `src/components/UploadComponent.tsx` tenta fallback local quando o Worker falha.
@@ -83,12 +86,30 @@ Executada em 2026-06-14:
 - O helper `src/services/valueTraceability.ts` centraliza a rastreabilidade por DCOMP/valor e evita misturar metadado com campos `...Original`.
 - Ainda falta evoluir o layout fino do PDF se as celulas ficarem densas em cadeias grandes.
 
+### Excel
+
+- `src/services/ExcelReportGeneratorService.ts` constroi e baixa o `.xlsx` consolidado a partir de `simulacoesSalvas`.
+- O workbook possui `Projeção Retificações Cadeias`, `Resumo`, `Premissas`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`, nessa ordem.
+- A primeira aba funciona como roteiro de retificacoes: pares atuais/corretos, campos a alterar, motivo e orientacao por documento.
+- Nao vigencia prevalece sobre qualquer divergencia: a linha recebe `IGNORAR - NÃO VIGENTE` e nao recomenda retificadora.
+- O perfil visual segue a referencia `Sheets/Relatorio de Analise eCAC_06.06.26.xlsx` sem depender dela em runtime.
+- `exceljs` e importado dinamicamente pelo botao `Exportar Excel`; `xlsx` continua dedicado a importacao.
+- O exportador aceita snapshots antigos e nao infere SELIC, status ou rastreabilidade ausentes.
+
 ### Snapshots
 
 - `SimulacaoSalva` agora pode carregar `rastreabilidadeValores`.
 - `store.ts` preenche `rastreabilidadeValores` ao salvar simulacao.
 - Cada DCOMP salva recebe valores auditaveis com `campo`, `rotulo`, `valor`, `origemValor`, `metodo`, `statusCalculo` quando houver e `dadosAusentes`.
 - Campos `...Original` continuam preservados; a rastreabilidade e metadado separado.
+
+### Ordenacao por Timestamp de Transmissao
+
+- O timestamp da aba `PERDCOMP Débitos` e associado por numero da PER/DCOMP.
+- Todas as linhas de debito do documento devem concordar e o dia deve coincidir com a aba `Processamento PERDCOMP`.
+- Ordem: profundidade da linhagem, data de processamento, timestamp quando ambos os documentos o possuem e, por fim, ordem fisica de importacao.
+- Documentos sem correspondencia na aba de debitos mantem o comportamento anterior.
+- `CalculoService.ts`, UI, PDF e regras tributarias nao foram alterados.
 
 ## Objetos de Auditoria
 
@@ -101,8 +122,8 @@ Executada em 2026-06-14:
 | AUD-05 | `05-ValoresOriginaisRastreabilidade.md` | Parcialmente coberto | Metadado de origem por documento/valor. |
 | AUD-06 | `06-RetificacoesVigenciaBloqueios.md` | Parcialmente consultivo | Alinhar usos legados de `statusHelper.ts` com classificacao consultiva. |
 | AUD-07 | `07-SimulacaoEdicoesDcompHipotetica.md` | Aberto/parcial | Data de transmissao hipotetica auditavel e metodo declarado de multa/juros. |
-| AUD-08 | `08-RelatoriosPDFExcelRastreabilidade.md` | Parcialmente implementado / Passo 1 concluido | Revisar ergonomia visual do PDF e planejar Excel futuro. |
-| AUD-09 | `09-CasosTesteMatrizEvidencias.md` | Revalidado | Manter 15/62 como baseline e adicionar testes para novos comportamentos. |
+| AUD-08 | `08-RelatoriosPDFExcelRastreabilidade.md` | PDF e Excel implementados / roteiro operacional entregue | Revisar ergonomia do PDF e ampliar metadados de DCOMP hipotetica. |
+| AUD-09 | `09-CasosTesteMatrizEvidencias.md` | Revalidado | Manter a suite completa como baseline e adicionar testes para novos comportamentos. |
 | AUD-10 | `10-BaseGeralPERDCOMPWeb.md` | Base consolidada | Coordenar catalogos consultivos. |
 | AUD-11 | `11-DesenhoTecnicoImplementacaoNormativa.md` | Parcialmente executado | Atualizar plano conforme fases ja executadas. |
 | AUD-12 | este arquivo | Atualizado | Manter como continuidade longitudinal. |
@@ -114,9 +135,8 @@ Executada em 2026-06-14:
 2. Resolver tratamento de DCOMP hipotetica: data auditavel, termo final e metodo SELIC/fallback.
 3. Tratar credito judicial por componentes ou manter `dados_insuficientes` com orientacao clara.
 4. Ampliar qualidade de importacao para datas invalidas, valores ausentes e zero importado.
-5. Planejar exportacao Excel auditavel usando o mesmo contrato de `rastreabilidadeValores`.
-6. Avaliar code splitting para reduzir warnings de chunk.
-7. Decidir destino de `testSelic.ts` e `tmp/`: remover, ignorar ou preservar como artefato local, sem misturar com codigo de aplicacao.
+5. Avaliar reducao adicional dos chunks grandes de PDF, importacao e Excel.
+6. Decidir destino de `testSelic.ts` e `tmp/`: remover, ignorar ou preservar como artefato local, sem misturar com codigo de aplicacao.
 
 ## Implementacao do Passo 1 - 2026-06-14
 
@@ -148,6 +168,40 @@ Bug/comportamento inesperado encontrado:
 - A suite completa inicialmente falhou por timeout em `RastreabilidadePanel.test.tsx`, que reparseava planilha real pesada e renderizava todas as DCOMPs dentro de um unico teste.
 - Correcao: cachear `parseExcelFile(...)`/`recalcularCadeia(...)` em `beforeAll` e renderizar uma amostra real representativa (metadados ausentes, SELIC com dados ausentes, debitos, `Em analise`, processo judicial e primeiras DCOMPs), preservando a validacao relevante sem transformar o teste em carga.
 
+## Implementacao do Relatorio Excel - 2026-06-22
+
+Arquivos principais:
+
+- `src/services/ExcelReportGeneratorService.ts`: builder puro e download do workbook.
+- `src/services/__tests__/ExcelReportGeneratorService.test.ts`: nove testes de estrutura, roteiro operacional, dados, formatos, estilo, formulas e compatibilidade.
+- `src/App.tsx`: botao `Exportar Excel`, importacao dinamica e tratamento por toast.
+- `package.json`/`package-lock.json`: `exceljs` como dependencia de exportacao.
+
+Comportamento entregue:
+
+- sete abas consolidadas exclusivamente dos snapshots salvos;
+- nenhuma regra tributaria recalculada dentro do Excel;
+- valores originais, recalculados e deltas em colunas distintas;
+- evidencias por valor rastreado e por fonte normativa disponivel;
+- datas, moedas, percentuais, competencias, CNPJ e identificadores com tipos/formatos Excel;
+- compatibilidade defensiva com snapshots antigos.
+
+## Evolucao do Roteiro de Retificacoes - 2026-06-22
+
+- A planilha real exportada mostrou 12 documentos `RETIFICAR`, todos sem edicao manual, mas a antiga aba `Cascata` exibia deltas zerados e nao explicava o campo divergente.
+- A aba foi renomeada para `Projeção Retificações Cadeias` e movida para a primeira posicao.
+- Os valores monetarios passaram a pares adjacentes `Atual`/`Correto`; cabecalhos atuais usam `#C8C8C8` e corretos usam `#64C864`.
+- Colunas tecnicas e IDs internos permanecem disponiveis, porem ocultos por padrao na primeira aba.
+- `divergenciaDetalhes.esperado/calculado` alimenta o par de credito na data de transmissao; os demais pares usam campos importados/originais e calculados ja existentes no snapshot.
+- Os motivos permitidos sao `Edição Manual de Débitos`, `Edição Manual de Saldo de Créditos` e `Recálculo em Cascata`.
+- Documentos nao vigentes ficam `IGNORAR - NÃO VIGENTE`, mesmo que o snapshot contenha divergencia ou status tecnico de retificacao.
+- PDF, parser, store e motor de calculo nao foram alterados nesta evolucao.
+
+Regressao tratada:
+
+- testes reais passaram a selecionar somente os nomes conhecidos de relatorio de analise e-CAC, evitando planilhas de outros modulos existentes em `Sheets/`;
+- `selicService.real.test.ts` passou a reutilizar o parse no `beforeAll`, eliminando timeouts sem aumentar timeout nem alterar codigo de aplicacao.
+
 ## Planilhas Reais Disponiveis
 
 Pasta: `C:\Projetos\B.Smart_PERDCOMPs\Sheets`
@@ -159,7 +213,7 @@ Arquivos conhecidos:
 - `Relatorio de Analise e-CAC.xlsx`
 - `relatorio.xlsx`
 
-Os testes atuais iteram planilhas `.xlsx` reais e ignoram temporarios `~$*.xlsx`.
+Os testes atuais iteram os nomes conhecidos de relatorio de analise e-CAC e ignoram temporarios `~$*.xlsx` e planilhas de outros modulos.
 
 ## Comandos Uteis Para Retomada
 

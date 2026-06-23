@@ -101,6 +101,7 @@ O parser mapeia atualmente:
 | Numero do PER/DCOMP | `Numero Perdcomp`, `Numero do PER/DCOMP` | `DCOMP.id` | Mapeado |
 | Data de transmissao original/referencia | `Data Transmissao`, `Data de Transmissao do Perdcomp` | `dataTransmissaoOriginal`, depois herdada da DCOMP ancestral na linhagem | Mapeado, mas sem regra de dia nao util |
 | Data real de transmissao | `Data de Transmissao do Perdcomp`, `Data Transmissao` | `dataTransmissao` | Mapeado |
+| Timestamp preciso de transmissao | `PERDCOMP Debitos`.`Data de Transmissao` | `dataHoraTransmissaoImportada` | Mapeado como metadado opcional de desempate |
 | Tipo de credito | `Tipo de Credito` | `tipoCredito` | Mapeado |
 | Periodo de apuracao do credito | `Periodo de Apuracao do Credito`, `Periodo de Apuracao` | `periodoApuracaoCredito` | Mapeado como string; sem inicio/fim estruturados |
 | Valor total do credito detalhado | `Valor Total do Credito Detalhado`, `Valor Total do Credito` | `valorTotalCreditoDetalhado` e `valorTotalCreditoDetalhadoOriginal` | Mapeado |
@@ -109,6 +110,16 @@ O parser mapeia atualmente:
 | DCOMP/PER de detalhamento anterior | `Perdcomp Anterior com Detalhamento de Credito`, `Detalhado Perdcomp Anterior` | `numeroDcompDetalhamento` | Mapeado |
 | Retificador/cancelador | `Retificado ou Cancelado Por`, `Numero Retificador` | `numeroRetificador` | Mapeado |
 | Debitos: PA, vencimento e valores | `Periodo de Apuracao do Debito`, `Data de Vencimento Tributo Quota`, `Valor Principal`, `Valor Multa`, `Valor Juros`, `Valor Total` | `DebitoOficial` e campos `...Original` | Mapeado |
+
+### Atualizacao de Ordenacao Cronologica - 2026-06-23
+
+- A planilha `Relatorio de Analise eCAC_06.06.26.xlsx` possui 4.650 linhas na aba `PERDCOMP Débitos`; todas apresentam timestamp com data, hora, minuto e segundo.
+- As linhas correspondem a 864 PER/DCOMPs distintas e nao foram observados timestamps divergentes entre os debitos de uma mesma PER/DCOMP.
+- O parser associa o timestamp a `DCOMP.dataHoraTransmissaoImportada` apenas quando todas as linhas encontradas para o documento concordam e o dia coincide com `dataTransmissao` da aba `Processamento PERDCOMP`.
+- A profundidade da linhagem continua sendo o primeiro criterio: uma retificadora nunca antecede sua original por possuir horario menor.
+- Para documentos comparaveis com a mesma data, o timestamp desempata somente quando ambos o possuem.
+- Se um ou ambos nao possuem timestamp, se ha conflito entre linhas ou se o dia diverge, a ordem fisica da aba `Processamento PERDCOMP` e preservada.
+- `dataTransmissaoOriginal` continua sendo a data de referencia herdada da ancestral e nao recebe a hora da aba de debitos.
 
 ### Resultado observado com a planilha real
 

@@ -2,9 +2,9 @@
 
 ## Alta Prioridade
 
-1. **Rastreabilidade completa de valores em UI/PDF**
+1. **Rastreabilidade completa de valores em UI/PDF/Excel**
    - Expandir metadados de origem/metodo para valores importados, calculados, simulados, replicados e fallback.
-   - Priorizar PDF e snapshots de simulacao antes de exportacao Excel.
+   - PDF, snapshots e Excel ja compartilham o contrato atual; falta ampliar casos de DCOMP hipotetica e metadados ainda nao preservados.
 
 2. **Auditoria normativa guiada por tipo de credito**
    - Continuar usando os manuais oficiais em `Knowledge/` e atos normativos citados.
@@ -29,7 +29,7 @@
 
 ## Concluido Recentemente
 
-- `npm test` passa com 15 arquivos e 62 testes.
+- `npm test` passa com 16 arquivos e 82 testes.
 - `npm run lint` passa.
 - `npm run build` passa com avisos nao bloqueantes de chunk/plugin timing.
 - Persistencia passou a usar IndexedDB via `idb-keyval`.
@@ -37,12 +37,14 @@
 - UI ganhou `RastreabilidadePanel`, `StatusBadge` e tooltips consultivos.
 - Regra consultiva `Em analise` foi implementada como vigente, editavel e cancelavel.
 - Snapshots e PDF ganharam rastreabilidade de origem/metodo/status por valor.
+- Exportacao Excel consolidada foi implementada com sete abas auditaveis e perfil visual do relatorio e-CAC; a primeira aba e um roteiro de retificacoes com valores atuais/corretos, causa e orientacao por PER/DCOMP.
+- `exceljs` e carregado dinamicamente em chunk proprio; `xlsx` permanece exclusivo da importacao.
+- Ordenacao de cadeias passou a usar hora, minuto e segundo da aba `PERDCOMP Débitos` como desempate seguro, preservando linhagem e ordem de importacao como fallback.
 
 ## Backlog de Longo Prazo
 
-- **Exportacao Excel (.xlsx) da simulacao:** abas minimas `Resumo`, `Premissas`, `Cascata`, `Debitos`, `SELIC`, `StatusVigencia` e `Evidencias`.
 - **Backend opcional:** salvar sessoes de trabalho e simulacoes para compartilhamento controlado, sem perder a vantagem de processamento local de dados fiscais.
-- **Code splitting:** reduzir chunks grandes ligados a PDF/importacao.
+- **Code splitting:** reduzir chunks grandes ligados a PDF, importacao e Excel.
 
 ## Sequencia Recomendada de Trabalho
 
