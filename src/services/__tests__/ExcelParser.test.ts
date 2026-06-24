@@ -1,17 +1,20 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as XLSX from 'xlsx';
 
 import { parseExcelFile } from '../ExcelParser';
 import { processExcelBuffer } from '../importPipeline';
 
-const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
-const sheetFiles = readdirSync(sheetsDir)
-  .filter(isEcacFixture)
-  .sort();
+// Planilhas reais ficam fora do repo (pasta Sheets/ do workspace ou BSMART_PERDCOMP_SHEETS_DIR).
+// Quando ausentes (repo aberto isoladamente), os testes de planilha real são pulados.
+const sheetsDir = process.env.BSMART_PERDCOMP_SHEETS_DIR ?? resolve(process.cwd(), '..', 'Sheets');
+const hasRealSheets = existsSync(sheetsDir);
+const sheetFiles = hasRealSheets
+  ? readdirSync(sheetsDir).filter(isEcacFixture).sort()
+  : [];
 
-describe('ExcelParser - planilhas reais e-CAC', () => {
+describe.skipIf(!hasRealSheets)('ExcelParser - planilhas reais e-CAC', () => {
   let latestResult: ReturnType<typeof parseExcelFile>;
 
   beforeAll(() => {

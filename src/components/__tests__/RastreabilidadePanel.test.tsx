@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToString } from 'react-dom/server';
 
@@ -8,13 +8,16 @@ import { parseExcelFile } from '../../services/ExcelParser';
 import { recalcularCadeia } from '../../services/CalculoService';
 import type { CadeiaRelacional, DCOMP } from '../../models/types';
 
-const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
+// Planilhas reais ficam fora do repo (Sheets/ do workspace ou BSMART_PERDCOMP_SHEETS_DIR);
+// na ausência delas (repo isolado) esta suíte é pulada.
+const sheetsDir = process.env.BSMART_PERDCOMP_SHEETS_DIR ?? resolve(process.cwd(), '..', 'Sheets');
+const hasRealSheets = existsSync(sheetsDir);
 let fixture: {
   result: ReturnType<typeof parseExcelFile>;
   cadeias: CadeiaRelacional[];
 };
 
-describe('RastreabilidadePanel', () => {
+describe.skipIf(!hasRealSheets)('RastreabilidadePanel', () => {
   beforeAll(() => {
     const result = parseExcelFile(readRealSheet(latestSheetFile()));
     fixture = {

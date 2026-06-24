@@ -1,14 +1,17 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { parseExcelFile } from '../../ExcelParser';
 import { calcularSelicRastreavel } from '../selicService';
 
-const sheetsDir = resolve(process.cwd(), '..', 'Sheets');
+// Planilhas reais ficam fora do repo (Sheets/ do workspace ou BSMART_PERDCOMP_SHEETS_DIR);
+// na ausência delas (repo isolado) esta suíte é pulada.
+const sheetsDir = process.env.BSMART_PERDCOMP_SHEETS_DIR ?? resolve(process.cwd(), '..', 'Sheets');
+const hasRealSheets = existsSync(sheetsDir);
 let latestResult: ReturnType<typeof parseExcelFile>;
 
-describe('SelicService - dados reais importados', () => {
+describe.skipIf(!hasRealSheets)('SelicService - dados reais importados', () => {
   beforeAll(() => {
     latestResult = parseExcelFile(readRealSheet(latestSheetFile()));
   });

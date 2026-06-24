@@ -62,3 +62,17 @@ Qualquer alteração feita por você deve:
 2. Leia `docs/ROADMAP.md` para buscar a próxima tarefa não iniciada.
 3. Se precisar entender por que algo está feito de forma X, verifique o `docs/DECISIONS.md`.
 4. Converse com o usuário, suba o ambiente com `npm run dev` e foque nas melhorias pendentes.
+
+## Invariantes do Ecossistema B.Smart
+Este repositório é desenvolvido como **Projeto individual no Claude Code**, mas faz parte do ecossistema B.Smart (Balera Advogados). As regras abaixo valem para todos os módulos:
+- Trabalhe em **português**, de forma técnica, direta e rigorosa.
+- **Não** altere o comportamento ativo da aplicação sem autorização expressa do usuário.
+- **Nunca** contamine nem sobrescreva valores `...Original` (âncoras importadas da RFB).
+- Separe sempre valores **importado / calculado / simulado / exibido**.
+- **Não** implemente regra normativa sem solicitação; quando solicitada, registre `fonte oficial`, `hipótese`, `impacto` e `caso de validação`.
+- **Dados reais de cliente (planilhas, CNPJs, CPFs) nunca são versionados** — mantenha-os fora do git.
+
+## Ecossistema e Recursos Externos
+- O dev server roda na porta **5173**. O hub **bsmart-main** (5170) aponta para cá via a env `VITE_BSMART_PERDCOMP_URL` (irmãos: contextualizacao :5171, utilitarios :5174 + backend :3001).
+- Material normativo da RFB (manuais PER/DCOMP, tabelas SELIC, códigos de receita) e as planilhas reais de cliente vivem **fora deste repositório**, na pasta-guarda-chuva do workspace (`Knowledge/`, `Sheets/`). Não são necessários em runtime — o app já embute `src/selic.json`, `src/selicMensal.json` e `src/data/CodigosDeReceita.json`.
+- Testes de planilha real leem de `Sheets/` (workspace pai) ou da env `BSMART_PERDCOMP_SHEETS_DIR`; quando a pasta não existe (repo aberto isoladamente), essas suítes são **puladas** automaticamente — o restante dos testes roda normalmente.
