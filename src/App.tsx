@@ -3,7 +3,7 @@ import { DashboardCadeias } from './components/DashboardCadeias';
 import { UploadComponent } from './components/UploadComponent';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { useStore } from './store';
-import { Sun, Moon, RotateCcw, FileText, FileSpreadsheet, Trash2, Database } from 'lucide-react';
+import { Sun, Moon, RotateCcw, FileText, FileSpreadsheet, Trash2, Database, BookOpen } from 'lucide-react';
 import { generatePdfReport } from './services/ReportGeneratorService';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -97,7 +97,18 @@ function App() {
               >
                 {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
               </button>
-              
+
+              <a
+                className="btn btn-ghost"
+                href="/orientacoes.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir o guia de utilização (Orientações)"
+                style={{ color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}
+              >
+                <BookOpen size={16} /> Orientações
+              </a>
+
               {simulacoesSalvas.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderLeft: '1px solid var(--color-glass-border)', paddingLeft: '1rem' }}>
                   <div 

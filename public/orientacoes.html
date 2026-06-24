@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orientações — B.Smart PER/DCOMPs | Balera</title>
+<meta name="description" content="Guia de utilização do módulo B.Smart - PER/DCOMPs." />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--primary:rgb(0,179,255);--primary-2:rgb(0,155,225);--bg:#030305;--text:#f8fafc;--muted:#94a3b8;--soft:#cbd5e1;--glass:rgba(20,20,25,.6);--border:rgba(255,255,255,.08);--success:#22c55e;--radius:20px;--radius-sm:12px}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.65;-webkit-font-smoothing:antialiased}
+  .bg{position:fixed;inset:0;z-index:-1;background:radial-gradient(circle at 12% 18%,#001f3f,transparent 45%),radial-gradient(circle at 88% 8%,#072a44,transparent 42%);background-color:var(--bg);filter:blur(70px);opacity:.85}
+  .wrap{max-width:1000px;margin:0 auto;padding:2.6rem 1.5rem 5rem}
+  a{color:var(--primary);text-decoration:none}a:hover{color:var(--primary-2)}
+  h1,h2,h3,h4{line-height:1.18;letter-spacing:-.01em;font-weight:800}
+  p{color:var(--soft)}.muted{color:var(--muted)}
+  header.brand{display:flex;align-items:center;gap:1rem;padding-bottom:1.4rem;margin-bottom:2rem;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  header.brand img{height:38px;width:auto;object-fit:contain}
+  .brand-divider{width:1px;height:34px;background:var(--border)}
+  .brand-txt b{color:var(--primary);font-size:1.4rem;font-weight:800;display:block;line-height:1}
+  .brand-txt span{color:var(--muted);font-size:.9rem}
+  .actions{margin-left:auto}
+  .btn-dl{display:inline-flex;align-items:center;gap:.5rem;font-size:.85rem;font-weight:700;color:#fff;background:var(--primary);border-radius:var(--radius-sm);padding:.55rem 1rem;box-shadow:0 4px 14px rgba(0,179,255,.4)}
+  .btn-dl:hover{background:var(--primary-2);color:#fff}
+  .eyebrow{color:var(--primary);font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .hero h1{font-size:2.3rem;margin:.5rem 0 .7rem}
+  .hero p{font-size:1.03rem;max-width:760px}
+  .card{border:1px solid var(--border);border-radius:var(--radius);background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:2rem 2.1rem;margin:1.25rem 0}
+  .note{border:1px solid rgba(0,179,255,.25);background:rgba(0,179,255,.06);border-radius:var(--radius-sm);padding:1rem 1.2rem;margin:1.1rem 0}.note b{color:var(--text)}
+  .badge{display:inline-flex;align-items:center;gap:.5rem;font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--success);margin-bottom:.35rem}
+  .badge::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+  h3.block{font-size:1.15rem;color:var(--primary);margin:1.8rem 0 .7rem;padding-top:1.2rem;border-top:1px dashed var(--border)}
+  h3.block:first-of-type{border-top:0;padding-top:0}
+  h4{font-size:1rem;margin:1rem 0 .3rem}
+  ol.steps{list-style:none;counter-reset:s}
+  ol.steps li{position:relative;padding-left:2.8rem;margin:.85rem 0}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-.05rem;width:1.95rem;height:1.95rem;border-radius:50%;background:rgba(0,179,255,.12);color:var(--primary);border:1px solid rgba(0,179,255,.32);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem}
+  ol.steps li b{color:var(--text)}
+  ul.list{list-style:none}
+  ul.list li{position:relative;padding-left:1.4rem;margin:.4rem 0;color:var(--soft)}
+  ul.list li::before{content:'';position:absolute;left:0;top:.62rem;width:7px;height:7px;border-radius:50%;background:var(--primary);opacity:.8}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;margin:.6rem 0}
+  th{text-align:left;color:var(--primary);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;padding:.55rem .65rem;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:top}
+  td{padding:.55rem .65rem;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top;color:var(--soft)}td b{color:var(--text)}
+  .sheet{border-left:3px solid var(--primary);padding:.15rem 0 .15rem 1rem;margin:.9rem 0}
+  .sheet h4{margin:.1rem 0 .25rem;color:var(--text)}.sheet .fmt{color:var(--muted);font-size:.85rem;margin-bottom:.4rem}
+  .sheet code{background:rgba(255,255,255,.06);padding:.1rem .35rem;border-radius:5px;font-size:.85em}
+  dl.gloss dt{color:var(--primary);font-weight:700;margin-top:.8rem}
+  dl.gloss dd{color:var(--soft);margin:.1rem 0 0}
+  footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);color:var(--muted);font-size:.86rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.8rem}
+  @media print{
+    :root{--text:#0f172a;--soft:#334155;--muted:#475569;--primary:#0a6aae;--glass:#fff;--border:#e2e8f0}
+    body{background:#fff}.bg{display:none}.actions{display:none}
+    .card{break-inside:avoid}.note{background:#f1f9ff;border-color:#bae6fd}
+    .sheet code{background:#eef2f7}
+  }
+</style>
+</head>
+<body data-theme="dark">
+<div class="bg"></div>
+<div class="wrap">
+
+  <header class="brand">
+    <img src="balera_logo_novo.png" alt="Balera Advogados" />
+    <div class="brand-divider"></div>
+    <div class="brand-txt"><b>B.Smart</b><span>Orientações · PER/DCOMPs</span></div>
+    <div class="actions"><a class="btn-dl" href="orientacoes-perdcomp.pdf" download>⬇ Baixar PDF</a></div>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Ecossistema B.Smart · Balera Advogados</div>
+    <div class="badge" style="margin-top:.6rem">Módulo ativo</div>
+    <h1>B.Smart - PER/DCOMPs</h1>
+    <p class="muted" style="font-size:1.05rem;margin-bottom:.8rem">Simulador de Cascatas Tributárias de PER/DCOMP</p>
+    <p>Lê o <b>Relatório de Análise e-CAC</b> em Excel, reconstrói automaticamente as <b>cadeias relacionais</b>
+    de PER/DCOMP (originais, retificadoras e cancelamentos) e permite simular, em cascata, o efeito de reduzir
+    débitos compensados. Você vê quais documentos estão vigentes, editáveis ou bloqueados, e o impacto matemático
+    de cada alteração no saldo de crédito da cadeia. Ao final, gera relatórios consolidados em PDF e Excel para
+    documentar a simulação e orientar as retificações.</p>
+  </section>
+
+  <div class="note">
+    <b>Privacidade.</b> Tudo é processado <b>localmente no seu navegador</b>. A planilha e os dados do cliente
+    <b>não são enviados a nenhum servidor</b>. As simulações ficam na memória local (IndexedDB) — recarregar a
+    página não perde o trabalho, mas limpar os dados do navegador ou trocar de máquina apaga o que estava salvo.
+  </div>
+
+  <div class="card">
+    <p class="muted"><b style="color:var(--text)">Para que serve:</b> substitui a leitura manual de planilhas com
+    dezenas ou centenas de PER/DCOMPs relacionadas, retificações, cancelamentos, débitos de vários períodos e
+    atualizações SELIC — identificando a linhagem correta, o que continua vigente e o impacto em cascata, sem
+    perder rastreabilidade e sem misturar o valor original da RFB com o valor simulado.</p>
+
+    <h3 class="block">Planilha ingerida</h3>
+    <table>
+      <tr><th>Arquivo</th><td><b>Relatório de Análise e-CAC.xlsx</b> — somente <b>.xlsx</b>, um arquivo por vez.</td></tr>
+      <tr><th>Origem</th><td>Gerado pelo <b>Sistema INDEX</b> da Balera a partir dos dados do e-CAC (Receita Federal). Use sem alterações, no formato original.</td></tr>
+      <tr><th>Abas exigidas</th><td>Exatamente duas: <b>“Processamento PERDCOMP”</b> e <b>“PERDCOMP Débitos”</b>. Em ambas, o <b>cabeçalho está na linha 4</b> e os dados começam na linha 5. Se faltar uma aba ou ela estiver vazia, a importação é recusada com mensagem de erro.</td></tr>
+    </table>
+    <h4>Colunas obrigatórias</h4>
+    <ul class="list">
+      <li><b>Processamento PERDCOMP:</b> “IDs da Cadeia Relacional”, “Número Perdcomp” (ou “Número do PER/DCOMP”) e “Valor Total do Crédito Detalhado” (ou “Valor Total do Crédito”).</li>
+      <li><b>PERDCOMP Débitos:</b> “Número do PER/DCOMP”, “Código de Receita” e “Valor Total”.</li>
+    </ul>
+    <p class="muted" style="font-size:.88rem">Outras colunas são usadas na análise (Situação, Tipo de Crédito, Período de Apuração, Valor Principal/Multa/Juros, datas de transmissão e vencimento, retificação/cancelamento etc.). Mantenha o relatório íntegro.</p>
+
+    <h3 class="block">Passo a passo</h3>
+    <ol class="steps">
+      <li><b>Faça o upload do relatório.</b> Na tela “Simulador de Cascatas Tributárias”, arraste o .xlsx do e-CAC ou clique para selecionar. Há também “Carregar Dados de Exemplo (Mock)” para conhecer a ferramenta sem dados reais.</li>
+      <li><b>Aguarde o processamento.</b> O sistema lê as duas abas, agrupa os documentos em cadeias relacionais e calcula os reflexos da SELIC. Ao final, aparece “Planilha processada com sucesso!”.</li>
+      <li><b>Confira a Visão Executiva (Dashboard Global).</b> Empresa (razão social e CNPJ), intervalo de anos e KPIs: Total de Cadeias, Total de PER/DCOMPs, Cadeias Editadas, Lastro Disponibilizado, Débitos Reduzidos e, se houver, Inconsistências.</li>
+      <li><b>Selecione uma cadeia relacional.</b> Em “Cadeias Relacionais”, use os filtros (nº do PER/DCOMP, Tipo de Crédito, PA do crédito/débito) e escolha a cadeia no menu — que mostra a PER/DCOMP de origem, o tipo de crédito, o PA e a quantidade de DCOMPs.</li>
+      <li><b>Analise a cascata e a rastreabilidade.</b> O “Simulador de Cascata” mostra os KPIs da cadeia e a tabela de cada PER/DCOMP (Situação, datas, Crédito Detalhado, Crédito na Transmissão, Débitos Atualizados, Crédito Original Usado, Saldo para a Próxima DCOMP). Selos indicam status (OK, A RETIFICAR, EDITADO, BLOQUEADO, Não vigente), papel (DETALHADOR/CONSUMIDOR) e qualidade SELIC.</li>
+      <li><b>Filtre a tabela.</b> Busca por nº de PER/DCOMP, filtro de Status (Todos, Apenas Vigentes e Editáveis, OK, A Retificar, Impedido) e “Mostrar apenas detalhadores”.</li>
+      <li><b>Edite débitos de um documento vigente.</b> Clique em “Débitos” (lápis) e ajuste Principal, Multa e Juros (multa e juros recalculam proporcionalmente ao principal). Os valores originais ficam preservados (“Orig:”). “Salvar Alterações” recalcula a cascata sem sobrescrever o original.</li>
+      <li><b>Veja débitos bloqueados.</b> Em documentos não editáveis o botão vira “Ver Débitos” (olho), em modo somente leitura.</li>
+      <li><b>Ajuste o saldo da raiz (opcional).</b> Na PER/DCOMP vigente mais antiga, o botão “Saldo” (engrenagem) permite ajustar o saldo original de crédito da raiz, preservando o valor importado.</li>
+      <li><b>Simule uma PER/DCOMP hipotética (opcional).</b> Informe data de transmissão auditável e os débitos (Código de Receita, PA, Vencimento, Principal, Multa, Juros). “Injetar na Cascata” mostra o efeito de uma declaração futura.</li>
+      <li><b>Salve a simulação da cadeia.</b> “Salvar Simulação da Cadeia” guarda KPIs, documentos e metadados de auditoria na memória local.</li>
+      <li><b>Exporte os relatórios.</b> Com pelo menos uma simulação salva, use “Relatório Consolidado” (PDF) e/ou “Exportar Excel”. “Nova Simulação” descarta tudo para importar outra planilha.</li>
+    </ol>
+
+    <h3 class="block">Relatórios exportáveis</h3>
+    <p class="muted" style="margin-bottom:.4rem">Ambos consolidam apenas as <b>cadeias cujas simulações foram salvas</b>. Salve cada cadeia antes de exportar.</p>
+
+    <div class="sheet">
+      <h4>📄 Relatório Consolidado de Simulações — PDF</h4>
+      <div class="fmt">Arquivo <code>Relatorio_Consolidado_Simulacoes.pdf</code> · A4 paisagem · identidade visual Balera.</div>
+      <ul class="list">
+        <li><b>Cabeçalho:</b> título, empresa (razão social e CNPJ) e data/hora de emissão.</li>
+        <li><b>Visão Executiva:</b> total de cadeias, cadeias exportadas, total de PER/DCOMPs, cadeias editadas, crédito original consumido, lastro disponibilizado e redução total de débitos.</li>
+        <li><b>Premissas e Metodologia:</b> as 4 classes de valor — Importados do e-CAC, Calculados Normativamente (SELIC), Estimados/Históricos (fallback) e Simulados pelo usuário.</li>
+        <li><b>Glossário de indicadores (badges):</b> RFB, ECAC, CALC, SELIC, NORM, SIM, EDIC, FALL, EST, DADOS, PARC, CASC, DIV, HIP, RAIZ.</li>
+        <li><b>Aviso de Auditoria + “Risco e Limitações”:</b> alerta sobre cálculos estimados/dados insuficientes e lista vedações de crédito/débito, hipóteses e dados ausentes.</li>
+        <li><b>Por simulação — Resumo (KPIs):</b> Saldo Inicial Original, Novo Saldo Inicial, Crédito Original Usado, Lastro Disponibilizado, Redução de Débitos, Saldo Restante (Anterior e Novo).</li>
+        <li><b>1º Edições Manuais:</b> PER/DCOMP, Débito Editado, PA, Valor Original, Novo Valor e variação (Delta).</li>
+        <li><b>Tabelas comparativas</b> “Importados/Históricos” × “Simulados/Recalculados” por PER/DCOMP, com badges de indicadores.</li>
+        <li><b>2º Espelho de Modificações da Cadeia:</b> mesma comparação para todos os documentos vigentes afetados, inclusive impactados indiretamente.</li>
+        <li><b>3º Injeção de PER/DCOMPs Hipotéticas:</b> tabela das declarações hipotéticas.</li>
+      </ul>
+    </div>
+
+    <div class="sheet">
+      <h4>📊 Relatório Consolidado de Simulações — Excel (7 abas)</h4>
+      <div class="fmt">Arquivo <code>Relatorio_Consolidado_Simulacoes_AAAAMMDD_HHMM.xlsx</code> · padrão e-CAC (cabeçalho na linha 4, subtotais, autofiltro, painéis congelados).</div>
+      <ul class="list">
+        <li><b>Projeção Retificações Cadeias</b> (roteiro operacional): por documento — Cadeia, PER/DCOMP, datas, Tipo, Situação, Vigência, Tipo de Crédito, Status Cascata, Campos a Retificar, Motivo, Orientação Operacional e pares <b>Atual</b> (cinza) / <b>Correto</b> (verde). O Status indica a ação: A RETIFICAR, IGNORAR - NÃO VIGENTE, REVISAR - BLOQUEADO, TRANSMITIR NOVA PER/DCOMP ou SEM RETIFICAÇÃO.</li>
+        <li><b>Resumo:</b> Empresa, CNPJ, Emissão, Simulação, Cadeia, PER/DCOMP Inicial, Tipo de Crédito, nº de DCOMPs/Débitos, Saldos Original/Atualizado, Economia Projetada, Lastro Disponibilizado, Saldo Restante (antigo/novo), Versão do Motor e Status do Cálculo.</li>
+        <li><b>Premissas:</b> classes metodológicas (IMPORTADO, CALCULADO, SIMULADO, FALLBACK), legenda Atual/Correto, glossário de indicadores, versão do motor, fonte da SELIC, hipóteses e dados ausentes.</li>
+        <li><b>Debitos:</b> por débito — Cadeia, PER/DCOMP, ID, Código de Receita, PA, Vencimento, CNPJ, recibos, e Principal/Multa/Juros/Total em três colunas cada (Original, Recalculado, Delta).</li>
+        <li><b>SELIC:</b> Status do Cálculo, Método, Origem, Taxa SELIC, Termo Inicial/Final, datas, Crédito Atualizado, Saldo Calculado, Dados Usados/Ausentes, Hipóteses e Alertas.</li>
+        <li><b>StatusVigencia:</b> Situação original e normalizada, Tipo de Documento, Vigência, Editabilidade, Cancelabilidade, Motivos e Fontes Normativas.</li>
+        <li><b>Evidencias:</b> rastreabilidade por valor — Campo, Rótulo, Valor Rastreado, Origem, Método, Status, Dados Ausentes e referências normativas (Arquivo, Ato, Artigo, Página/Seção).</li>
+      </ul>
+    </div>
+
+    <h3 class="block">Confiabilidade dos dados</h3>
+    <ul class="list">
+      <li>Tudo é processado e salvo <b>localmente</b> (IndexedDB), sem envio a servidores.</li>
+      <li>Os valores <b>“Original” (RFB) nunca são sobrescritos</b>; a ferramenta sempre compara original × editado/recalculado.</li>
+      <li>Separação explícita entre importado, calculado, simulado e exibido — cada valor recalculado carrega indicadores de origem, método e status.</li>
+      <li>Sem dados suficientes para a SELIC, o resultado é marcado como estimativa histórica ou dados insuficientes (nunca conclusivo).</li>
+    </ul>
+
+    <h3 class="block">Limitações</h3>
+    <ul class="list">
+      <li>Ferramenta de apoio técnico-consultivo; <b>não substitui</b> a validação oficial no e-CAC / PER/DCOMP Web da Receita.</li>
+      <li>Depende do Relatório de Análise e-CAC do Sistema INDEX, sem alterações; só aceita .xlsx com as abas e o cabeçalho na linha 4.</li>
+      <li>Alertas normativos e vedações são consultivos e exigem interpretação profissional.</li>
+      <li>Os relatórios só incluem cadeias salvas; limpar o navegador apaga as simulações.</li>
+    </ul>
+
+    <h3 class="block">Glossário</h3>
+    <dl class="gloss">
+      <dt>PER/DCOMP</dt><dd>Pedido Eletrônico de Restituição/Ressarcimento/Reembolso e Declaração de Compensação — declara um crédito e o usa para compensar débitos.</dd>
+      <dt>Cadeia Relacional</dt><dd>Conjunto de PER/DCOMPs ligadas (original, retificadoras e cancelamentos) sobre um mesmo crédito, agrupadas pela coluna “IDs da Cadeia Relacional”.</dd>
+      <dt>Detalhador × Consumidor</dt><dd>Detalhador origina (detalha) o crédito; Consumidor apenas consome o crédito detalhado por outra da cadeia.</dd>
+      <dt>Vigente / Bloqueado</dt><dd>Vigente é a declaração ainda ativa (só essas, e não bloqueadas, podem ter débitos editados). Bloqueado: a situação na RFB impede retificação — apenas visualização.</dd>
+      <dt>A Retificar</dt><dd>Sinaliza que o documento precisaria de uma retificadora, por edição manual ou por impacto colateral do recálculo em cascata.</dd>
+      <dt>Cascata</dt><dd>Propagação automática do efeito de uma alteração ao longo das declarações seguintes da cadeia.</dd>
+      <dt>Lastro Disponibilizado</dt><dd>Crédito que volta a ficar disponível por causa das reduções de débitos feitas na simulação.</dd>
+      <dt>Qualidade SELIC</dt><dd>Classifica a atualização pela SELIC: “normativo” (SELIC Exata), “estimativa histórica” (fallback) ou “dados insuficientes”.</dd>
+      <dt>Atual × Correto (Excel)</dt><dd>No roteiro de retificações, “Atual” (cinza) é o valor importado/atual e “Correto” (verde) é o esperado após o recálculo.</dd>
+    </dl>
+  </div>
+
+  <footer>
+    <span>B.Smart · Balera Advogados — Orientações do módulo PER/DCOMPs</span>
+    <span>Atualizado em junho de 2026</span>
+  </footer>
+
+</div>
+</body>
+</html>
