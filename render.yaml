@@ -2,7 +2,6 @@ services:
   - name: bsmart-perdcomp
     type: web
     runtime: static
-    plan: free
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     routes:
