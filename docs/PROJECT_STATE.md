@@ -77,5 +77,11 @@ Estado verificado em 2026-06-23:
 - A coluna `Divergente` deriva de `divergenciaDetalhes`, e nao de `isDivergente` — este ultimo esta
   desativado no `CalculoService` (`isDivergente = false` incondicional).
 - Benchmark medido na planilha DASA real (1.507 documentos / 4.658 debitos, ~107 colunas na aba de
-  debitos): **1.329 ms** no modo completo, contra o limite de 15.000 ms fixado no design. Geracao
+  debitos): **1.627 ms** no modo completo, contra o limite de 15.000 ms fixado no design. Geracao
   segue na thread principal; Web Worker nao foi necessario.
+- Ao lado de cada coluna que traz numero de PER/DCOMP (nas abas Cascata PER-DCOMP e Debitos por
+  Linha) ha uma coluna "- Vigente" com o numero da PER/DCOMP vigente correspondente, resolvida
+  seguindo a cadeia de numeroRetificador ate o fim (). Se a
+  referencia ja for a vigente, o numero se repete; se a linha terminar em documento nao vigente
+  (cancelado, por exemplo), a coluna fica vazia. O indice e global as cadeias, porque referencias de
+  detalhamento podem apontar para documento de outra cadeia relacional.

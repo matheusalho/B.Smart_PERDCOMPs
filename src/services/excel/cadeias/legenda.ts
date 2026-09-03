@@ -28,6 +28,7 @@ const GLOSSARIO: Array<[string, string]> = [
   ['Bloqueado', 'Situação processual na RFB impede edição/retificação (ex.: Despacho Decisório Emitido, Homologado, discussão administrativa).'],
   ['Divergente', 'Há diferença entre o crédito declarado na transmissão e o calculado pela cascata. Ver "Divergência — Esperado" e "Divergência — Calculado".'],
   ['Hipotética', 'PER/DCOMP criada pelo usuário na simulação; não existe no Relatório de Análise e-CAC.'],
+  ['Colunas “— Vigente”', 'Ao lado de cada coluna que traz um número de PER/DCOMP há uma coluna com o número da PER/DCOMP VIGENTE correspondente — o fim da linha de retificações. Se a referência já for a vigente, o número se repete. Fica VAZIA quando a linha termina em documento não vigente (cancelado, por exemplo) ou quando o número referenciado não consta do relatório importado.'],
 ];
 
 const FILTROS: Array<[string, string]> = [

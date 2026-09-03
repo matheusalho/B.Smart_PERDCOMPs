@@ -18,6 +18,7 @@ import { buildQualidadeColumns, buildQualidadeRows } from './excel/cadeias/quali
 import { buildResumoColumns, buildResumoRows } from './excel/cadeias/resumoCadeias';
 import { buildSelicColumns, buildSelicRows } from './excel/cadeias/selicRastreabilidade';
 import { reconstruirCadeiasOriginais, type ReconstrucaoECAC } from './excel/pristineChain';
+import { criarVigenteIndex, type VigenteIndex } from './excel/vigenteIndex';
 import { createReportSheet, formatFileTimestamp, type RowInput } from './excel/workbookKit';
 
 export type { ModoRelatorio };
@@ -40,14 +41,20 @@ function prepararCadeias(input: CadeiasWorkbookInput): {
   return { cadeias: reconstrucao.cadeias, reconstrucao };
 }
 
-function buildCascataRows(cadeias: CadeiaRelacional[], modo: ModoRelatorio): RowInput[] {
+function buildCascataRows(
+  cadeias: CadeiaRelacional[],
+  modo: ModoRelatorio,
+  vigentes: VigenteIndex,
+): RowInput[] {
   return cadeias.flatMap((cadeia) =>
-    cadeia.dcomps.map((dcomp, indice) => buildDocumentoRow(dcomp, cadeia, indice + 1, modo)),
+    cadeia.dcomps.map((dcomp, indice) =>
+      buildDocumentoRow(dcomp, cadeia, indice + 1, modo, vigentes)),
   );
 }
 
 export function buildCadeiasWorkbook(input: CadeiasWorkbookInput): Workbook {
   const { cadeias, reconstrucao } = prepararCadeias(input);
+  const vigentes = criarVigenteIndex(cadeias);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'B.Smart PER/DCOMPs';
@@ -60,13 +67,13 @@ export function buildCadeiasWorkbook(input: CadeiasWorkbookInput): Workbook {
     workbook,
     'Cascata PER-DCOMP',
     buildDocumentoColumns(input.modo),
-    buildCascataRows(cadeias, input.modo),
+    buildCascataRows(cadeias, input.modo, vigentes),
   );
   createReportSheet(
     workbook,
     'Débitos por Linha',
     buildDebitoColumns(input.modo),
-    buildDebitosRows(cadeias, input.modo),
+    buildDebitosRows(cadeias, input.modo, vigentes),
   );
   createReportSheet(
     workbook,

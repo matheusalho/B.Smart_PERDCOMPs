@@ -13,6 +13,7 @@ import {
   isHypothetical,
   simNao,
 } from '../dcompFacts';
+import type { VigenteIndex } from '../vigenteIndex';
 import { toExcelDate, WIDTH, type ReportColumn, type RowInput } from '../workbookKit';
 
 export type ModoRelatorio = 'completo' | 'ecac';
@@ -66,8 +67,10 @@ export function buildDocumentoColumns(modo: ModoRelatorio): ReportColumn[] {
     // A. Identificação
     txt('idCadeia', 'ID Cadeia Relacional', WIDTH.regular),
     txt('perdcompRaiz', 'PER/DCOMP Raiz da Cadeia', WIDTH.wide),
+    txt('perdcompRaizVigente', 'PER/DCOMP Raiz — Vigente', WIDTH.wide),
     int('ordemNaCadeia', 'Ordem na Cadeia', WIDTH.compact),
     txt('perdcomp', 'PER/DCOMP', WIDTH.wide),
+    txt('perdcompVigente', 'PER/DCOMP Vigente', WIDTH.wide),
     txt('tipoDocumento', 'Tipo do Documento', WIDTH.description, true),
     txt('natureza', 'Natureza', WIDTH.medium),
     txt('origemDocumento', 'Origem', WIDTH.medium),
@@ -88,9 +91,12 @@ export function buildDocumentoColumns(modo: ModoRelatorio): ReportColumn[] {
     // C. Vínculos
     txt('papelDocumento', 'Papel do Documento', WIDTH.medium),
     txt('retificadoPor', 'Retific./Cancel. Por', WIDTH.wide),
+    txt('retificadoPorVigente', 'Retific./Cancel. Por — Vigente', WIDTH.wide),
     txt('tipoVinculo', 'Tipo do Vínculo', WIDTH.medium),
     txt('substituiPerdcomp', 'Retifica/Cancela a PER/DCOMP nº', WIDTH.wide),
+    txt('substituiPerdcompVigente', 'Retifica/Cancela — Vigente', WIDTH.wide),
     txt('detalhamento', 'Detalhamento', WIDTH.wide),
+    txt('detalhamentoVigente', 'Detalhamento — Vigente', WIDTH.wide),
     // D. Filtros e marcações
     txt('filtroVigentesEditaveis', 'Filtro: Vigentes e Editáveis', WIDTH.short),
     txt('filtroOk', 'Filtro: OK', WIDTH.compact),
@@ -129,6 +135,7 @@ export function buildDocumentoColumns(modo: ModoRelatorio): ReportColumn[] {
     txt('processoAdministrativo', 'Processo Administrativo', WIDTH.regular),
     txt('origemDiscussao', 'Origem da Discussão', WIDTH.regular),
     txt('perdcompAnteriorDetalhamento', 'PER/DCOMP Anterior c/ Detalhamento', WIDTH.wide),
+    txt('perdcompAnteriorDetalhamentoVigente', 'PER/DCOMP Anterior — Vigente', WIDTH.wide),
   ];
 }
 
@@ -137,6 +144,7 @@ export function buildDocumentoRow(
   cadeia: CadeiaRelacional,
   ordem: number,
   modo: ModoRelatorio,
+  vigentes: VigenteIndex,
 ): RowInput {
   const projecao = getProjectionValues(dcomp);
   const filtros = getFiltrosCascata(dcomp);
@@ -148,8 +156,10 @@ export function buildDocumentoRow(
   return {
     idCadeia: cadeia.id,
     perdcompRaiz: cadeia.numeroDcompInicial,
+    perdcompRaizVigente: vigentes.resolver(cadeia.numeroDcompInicial),
     ordemNaCadeia: ordem,
     perdcomp: dcomp.id,
+    perdcompVigente: vigentes.resolver(dcomp.id),
     tipoDocumento: dcomp.tipoDocumento,
     natureza: getNatureza(dcomp),
     origemDocumento: getOrigemDocumento(dcomp),
@@ -172,9 +182,12 @@ export function buildDocumentoRow(
 
     papelDocumento: getPapelDocumento(dcomp),
     retificadoPor: dcomp.numeroRetificador ?? '',
+    retificadoPorVigente: vigentes.resolver(dcomp.numeroRetificador),
     tipoVinculo: vinculo.tipo,
     substituiPerdcomp: vinculo.substituiPerdcomp,
+    substituiPerdcompVigente: vigentes.resolver(vinculo.substituiPerdcomp),
     detalhamento: dcomp.numeroDcompDetalhamento ?? '',
+    detalhamentoVigente: vigentes.resolver(dcomp.numeroDcompDetalhamento),
 
     filtroVigentesEditaveis: simNao(filtros.vigentesEditaveis),
     filtroOk: simNao(filtros.ok),
@@ -216,5 +229,6 @@ export function buildDocumentoRow(
     processoAdministrativo: metadados?.processoAdministrativo ?? '',
     origemDiscussao: metadados?.origemDiscussao ?? '',
     perdcompAnteriorDetalhamento: metadados?.numeroPerOriginal ?? '',
+    perdcompAnteriorDetalhamentoVigente: vigentes.resolver(metadados?.numeroPerOriginal),
   };
 }

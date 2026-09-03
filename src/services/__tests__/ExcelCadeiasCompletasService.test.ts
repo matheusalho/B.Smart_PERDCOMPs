@@ -261,3 +261,73 @@ describe('ExcelCadeiasCompletasService - abas Qualidade e Legenda', () => {
     expect(itens(completo)).toContain('Filtro: Vigentes e Editáveis');
   });
 });
+
+describe('ExcelCadeiasCompletasService - colunas de PER/DCOMP Vigente', () => {
+  const PARES: Array<[string, string]> = [
+    ['PER/DCOMP Raiz da Cadeia', 'PER/DCOMP Raiz — Vigente'],
+    ['PER/DCOMP', 'PER/DCOMP Vigente'],
+    ['Retific./Cancel. Por', 'Retific./Cancel. Por — Vigente'],
+    ['Retifica/Cancela a PER/DCOMP nº', 'Retifica/Cancela — Vigente'],
+    ['Detalhamento', 'Detalhamento — Vigente'],
+    ['PER/DCOMP Anterior c/ Detalhamento', 'PER/DCOMP Anterior — Vigente'],
+  ];
+
+  it('posiciona cada coluna Vigente imediatamente a direita da coluna de referencia', () => {
+    for (const nome of ['Cascata PER-DCOMP', 'Débitos por Linha'] as const) {
+      const sheet = montar().getWorksheet(nome)!;
+      for (const [referencia, vigente] of PARES) {
+        expect(colunaPorCabecalho(sheet, vigente)).toBe(colunaPorCabecalho(sheet, referencia) + 1);
+      }
+    }
+
+    const debitos = montar().getWorksheet('Débitos por Linha')!;
+    expect(colunaPorCabecalho(debitos, 'Nº do Recibo PER/DCOMP — Vigente'))
+      .toBe(colunaPorCabecalho(debitos, 'Nº do Recibo PER/DCOMP') + 1);
+  });
+
+  it('repete o proprio numero quando a referencia ja e a vigente', () => {
+    const sheet = montar().getWorksheet('Cascata PER-DCOMP')!;
+
+    expect(valorPorCabecalho(sheet, 5, 'PER/DCOMP Vigente')).toBe('00001.00001.010124.1.3.24-0001');
+    expect(valorPorCabecalho(sheet, 6, 'PER/DCOMP Vigente')).toBe('00002.00002.020124.1.1.01-0002');
+    expect(valorPorCabecalho(sheet, 8, 'PER/DCOMP Vigente')).toBe('00004.00004.040124.1.7.24-0004');
+  });
+
+  it('resolve ate o fim da linha de retificacoes', () => {
+    const sheet = montar().getWorksheet('Cascata PER-DCOMP')!;
+
+    // linha 7 = retificada, substituida por 00004; a vigente é a retificadora
+    expect(valorPorCabecalho(sheet, 7, 'PER/DCOMP')).toBe('00003.00003.030124.1.3.24-0003');
+    expect(valorPorCabecalho(sheet, 7, 'PER/DCOMP Vigente')).toBe('00004.00004.040124.1.7.24-0004');
+    expect(valorPorCabecalho(sheet, 7, 'Retific./Cancel. Por — Vigente')).toBe('00004.00004.040124.1.7.24-0004');
+
+    // a retificadora aponta para a retificada; a coluna Vigente resolve para ela mesma
+    expect(valorPorCabecalho(sheet, 8, 'Retifica/Cancela a PER/DCOMP nº')).toBe('00003.00003.030124.1.3.24-0003');
+    expect(valorPorCabecalho(sheet, 8, 'Retifica/Cancela — Vigente')).toBe('00004.00004.040124.1.7.24-0004');
+
+    // detalhamento aponta para a detalhadora, que segue vigente
+    expect(valorPorCabecalho(sheet, 8, 'Detalhamento — Vigente')).toBe('00001.00001.010124.1.3.24-0001');
+  });
+
+  it('deixa vazio quando a linha termina em documento nao vigente', () => {
+    const sheet = montar().getWorksheet('Cascata PER-DCOMP')!;
+
+    // linha 9 = Pedido de Cancelamento: não é vigente e não tem sucessora
+    expect(valorPorCabecalho(sheet, 9, 'PER/DCOMP')).toBe('00005.00005.050124.1.8.02-0005');
+    expect(valorPorCabecalho(sheet, 9, 'PER/DCOMP Vigente')).toBeNull();
+  });
+
+  it('repete a resolucao em cada linha de debito do mesmo documento', () => {
+    const sheet = montar().getWorksheet('Débitos por Linha')!;
+
+    expect(valorPorCabecalho(sheet, 5, 'PER/DCOMP Vigente')).toBe('00001.00001.010124.1.3.24-0001');
+    expect(valorPorCabecalho(sheet, 6, 'PER/DCOMP Vigente')).toBe('00001.00001.010124.1.3.24-0001');
+  });
+
+  it('emite as colunas Vigente tambem no modo e-CAC', () => {
+    const lista = cabecalhos(montar({ modo: 'ecac' }).getWorksheet('Cascata PER-DCOMP')!);
+
+    expect(lista).toContain('PER/DCOMP Vigente');
+    expect(lista).toContain('Detalhamento — Vigente');
+  });
+});

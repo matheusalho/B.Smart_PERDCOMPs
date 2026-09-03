@@ -1,6 +1,7 @@
 import codigosReceitaData from '../../../data/CodigosDeReceita.json';
 import type { CadeiaRelacional, DCOMP, DebitoOficial } from '../../../models/types';
 import { hasMeaningfulDifference, simNao } from '../dcompFacts';
+import type { VigenteIndex } from '../vigenteIndex';
 import { toExcelDate, toExcelMonth, WIDTH, type ReportColumn, type RowInput } from '../workbookKit';
 import {
   buildDocumentoColumns,
@@ -68,6 +69,7 @@ export function buildDebitoColumns(modo: ModoRelatorio): ReportColumn[] {
     txt('cnoObra', 'CNO Obra', WIDTH.regular),
     txt('debitoControladoProcesso', 'Débito Controlado em Processo', WIDTH.regular),
     txt('reciboPerdcomp', 'Nº do Recibo PER/DCOMP', WIDTH.wide),
+    txt('reciboPerdcompVigente', 'Nº do Recibo PER/DCOMP — Vigente', WIDTH.wide),
     txt('reciboDctf', 'Nº do Recibo de Transmissão DCTF', WIDTH.wide),
     txt('categoriaDctf', 'Categoria DCTF', WIDTH.medium),
     txt('dataTransmissaoDctf', 'Data de Transmissão DCTF', WIDTH.date),
@@ -88,6 +90,7 @@ function buildDebitoRow(
   debito: DebitoOficial,
   numeroDebito: number,
   modo: ModoRelatorio,
+  vigentes: VigenteIndex,
 ): RowInput {
   const receita = CODIGOS_RECEITA.get(debito.codigoReceita);
 
@@ -121,6 +124,7 @@ function buildDebitoRow(
     cnoObra: debito.cnoObra ?? '',
     debitoControladoProcesso: debito.debitoControladoEmProcesso ?? '',
     reciboPerdcomp: debito.numeroReciboPerDcomp ?? '',
+    reciboPerdcompVigente: vigentes.resolver(debito.numeroReciboPerDcomp),
     reciboDctf: debito.numeroReciboTransmissaoDctf ?? '',
     categoriaDctf: debito.categoriaDctf ?? '',
     dataTransmissaoDctf: debito.dataTransmissaoDctf ?? '',
@@ -133,8 +137,9 @@ function buildLinhasDoDocumento(
   cadeia: CadeiaRelacional,
   ordem: number,
   modo: ModoRelatorio,
+  vigentes: VigenteIndex,
 ): RowInput[] {
-  const documento = buildDocumentoRow(dcomp, cadeia, ordem, modo);
+  const documento = buildDocumentoRow(dcomp, cadeia, ordem, modo, vigentes);
 
   // PER e qualquer documento sem débitos importados ocupam exatamente uma
   // linha, com os blocos H, I e J vazios.
@@ -144,12 +149,17 @@ function buildLinhasDoDocumento(
 
   return dcomp.debitos.map((debito, indice) => ({
     ...documento,
-    ...buildDebitoRow(debito, indice + 1, modo),
+    ...buildDebitoRow(debito, indice + 1, modo, vigentes),
   }));
 }
 
-export function buildDebitosRows(cadeias: CadeiaRelacional[], modo: ModoRelatorio): RowInput[] {
+export function buildDebitosRows(
+  cadeias: CadeiaRelacional[],
+  modo: ModoRelatorio,
+  vigentes: VigenteIndex,
+): RowInput[] {
   return cadeias.flatMap((cadeia) =>
-    cadeia.dcomps.flatMap((dcomp, indice) => buildLinhasDoDocumento(dcomp, cadeia, indice + 1, modo)),
+    cadeia.dcomps.flatMap((dcomp, indice) =>
+      buildLinhasDoDocumento(dcomp, cadeia, indice + 1, modo, vigentes)),
   );
 }
