@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { DashboardCadeias } from './components/DashboardCadeias';
 import { UploadComponent } from './components/UploadComponent';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
@@ -22,9 +22,51 @@ function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
+  const importQualityReport = useStore(state => state.importQualityReport);
+  const [isExportingCompleto, setIsExportingCompleto] = useState(false);
+  const [isMenuCompletoOpen, setIsMenuCompletoOpen] = useState(false);
+  const menuCompletoRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuCompletoRef.current && !menuCompletoRef.current.contains(event.target as Node)) {
+        setIsMenuCompletoOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExportCompleto = async (modo: 'completo' | 'ecac') => {
+    if (isExportingCompleto) return;
+
+    setIsMenuCompletoOpen(false);
+    setIsExportingCompleto(true);
+    try {
+      const { generateRelatorioCompletoExcel } = await import('./services/ExcelCadeiasCompletasService');
+      await generateRelatorioCompletoExcel({
+        cadeias: Object.values(cadeias),
+        empresa,
+        importQualityReport,
+        simulacoesSalvas,
+        modo,
+      });
+      toast.success(
+        modo === 'ecac'
+          ? 'Relatório Excel (somente e-CAC) exportado.'
+          : 'Relatório Excel completo exportado.',
+      );
+    } catch (error) {
+      console.error('Falha ao exportar o relatório Excel completo:', error);
+      toast.error('Não foi possível exportar o relatório Excel completo.');
+    } finally {
+      setIsExportingCompleto(false);
+    }
+  };
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
@@ -131,9 +173,9 @@ function App() {
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', minWidth: '138px' }}
                     onClick={handleExportExcel}
                     disabled={isExportingExcel}
-                    title="Exportar Relatório Consolidado de Simulações em Excel"
+                    title="Exportar Excel apenas com as simulações salvas"
                   >
-                    <FileSpreadsheet size={16} /> {isExportingExcel ? 'Gerando...' : 'Exportar Excel'}
+                    <FileSpreadsheet size={16} /> {isExportingExcel ? 'Gerando...' : 'Excel das Simulações'}
                   </button>
                   <button 
                     className="btn btn-ghost text-danger" 
@@ -147,6 +189,67 @@ function App() {
                   >
                     <Trash2 size={16} />
                   </button>
+                </div>
+              )}
+
+              {temDados && (
+                <div ref={menuCompletoRef} style={{ position: 'relative' }}>
+                  <button
+                    className="btn btn-outline"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}
+                    onClick={() => setIsMenuCompletoOpen(prev => !prev)}
+                    disabled={isExportingCompleto}
+                    title="Exportar todas as cadeias do Relatório de Análise e-CAC importado"
+                    aria-haspopup="menu"
+                    aria-expanded={isMenuCompletoOpen}
+                  >
+                    <FileSpreadsheet size={16} /> {isExportingCompleto ? 'Gerando...' : 'Excel Completo'}
+                  </button>
+
+                  {isMenuCompletoOpen && (
+                    <div
+                      role="menu"
+                      className="card-glass"
+                      style={{
+                        position: 'absolute',
+                        top: 'calc(100% + 0.5rem)',
+                        right: 0,
+                        zIndex: 20,
+                        minWidth: '320px',
+                        padding: '0.5rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.25rem',
+                      }}
+                    >
+                      <button
+                        role="menuitem"
+                        className="btn btn-ghost"
+                        style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '0.6rem 0.75rem' }}
+                        onClick={() => handleExportCompleto('completo')}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600 }}>Completo — Original · Atual · Delta</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                            Inclui as colunas de simulação da sessão.
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        role="menuitem"
+                        className="btn btn-ghost"
+                        style={{ justifyContent: 'flex-start', textAlign: 'left', padding: '0.6rem 0.75rem' }}
+                        onClick={() => handleExportCompleto('ecac')}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600 }}>Somente valores do e-CAC</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                            Apenas os valores originais importados; demais colunas mantidas.
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

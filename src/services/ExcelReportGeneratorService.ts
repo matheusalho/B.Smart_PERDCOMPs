@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import type { Alignment, Border, Cell, Fill, Font, Workbook, Worksheet } from 'exceljs';
+import type { Workbook, Worksheet } from 'exceljs';
 
 import type {
   CadeiaRelacional,
@@ -7,74 +7,32 @@ import type {
   Empresa,
   SimulacaoSalva,
 } from '../models/types';
-import { isVigente } from '../utils/statusHelper';
 import type { FonteNormativa } from './normativo/types';
+import {
+  bodyFont,
+  createReportSheet,
+  DATA_START_ROW,
+  ECAC_CURRENCY_FORMAT,
+  formatFileTimestamp,
+  joinFontes,
+  joinList,
+  toExcelDate,
+  toExcelMonth,
+  WIDTH,
+  type ReportColumn,
+  type RowInput,
+} from './excel/workbookKit';
+import {
+  formatVigencia,
+  getProjectionValues,
+  getVigencia,
+  hasManualDebitEdit,
+  hasMeaningfulDifference,
+  isHypothetical,
+  type ProjectionValues,
+} from './excel/dcompFacts';
 
-const HEADER_ROW = 4;
-const DATA_START_ROW = 5;
-const LAST_EXCEL_ROW = 1_048_576;
-const HEADER_COLOR = 'FF00B4FF';
-const CURRENT_HEADER_COLOR = 'FFC8C8C8';
-const CORRECT_HEADER_COLOR = 'FF64C864';
-const WHITE = 'FFFFFFFF';
-const BLACK = 'FF000000';
-
-export const ECAC_CURRENCY_FORMAT =
-  '_-"R$"\\ * #,##0.00_-;\\-"R$"\\ * #,##0.00_-;_-"R$"\\ * "-"??_-;_-@_-';
-
-const DATE_FORMAT = 'dd/mm/yyyy';
-const DATE_TIME_FORMAT = 'dd/mm/yyyy hh:mm';
-const MONTH_FORMAT = 'mm/yyyy';
-const CNPJ_FORMAT = '00"."000"."000"/"0000"-"00';
-const PERCENT_FORMAT = '0.00%';
-
-const WIDTH = {
-  compact: 9.125,
-  short: 14.875,
-  medium: 18.25,
-  date: 20.625,
-  regular: 27.25,
-  wide: 35,
-  wider: 36.75,
-  description: 39.625,
-  maximum: 39.875,
-} as const;
-
-type CellInput = string | number | boolean | Date | null | undefined;
-type RowInput = Record<string, CellInput>;
-type ColumnKind =
-  | 'text'
-  | 'integer'
-  | 'date'
-  | 'datetime'
-  | 'month'
-  | 'currency'
-  | 'percentage'
-  | 'cnpj';
-
-type ReportColumn = {
-  key: string;
-  header: string;
-  kind?: ColumnKind;
-  width: number;
-  wrap?: boolean;
-  align?: 'left' | 'center' | 'right';
-  headerRole?: 'current' | 'correct';
-  hidden?: boolean;
-};
-
-type ProjectionValues = {
-  creditoInicialAtual: number;
-  creditoInicialCorreto: number;
-  creditoTransmissaoAtual: number;
-  creditoTransmissaoCorreto: number;
-  debitosAtuais: number;
-  debitosCorretos: number;
-  creditoUsadoAtual: number;
-  creditoUsadoCorreto: number;
-  saldoProximaAtual: number;
-  saldoProximaCorreto: number;
-};
+export { ECAC_CURRENCY_FORMAT };
 
 type OperationalStatus =
   | 'A RETIFICAR'
@@ -83,47 +41,6 @@ type OperationalStatus =
   | 'TRANSMITIR NOVA PER/DCOMP'
   | 'SEM RETIFICAÇÃO';
 
-const thinBlackBorder: Partial<Border> = {
-  style: 'thin',
-  color: { argb: BLACK },
-};
-
-const allBorders = {
-  top: thinBlackBorder,
-  left: thinBlackBorder,
-  bottom: thinBlackBorder,
-  right: thinBlackBorder,
-};
-
-const headerFont: Partial<Font> = {
-  name: 'Segoe UI',
-  size: 11,
-  bold: true,
-  color: { argb: WHITE },
-};
-
-const bodyFont: Partial<Font> = {
-  name: 'Segoe UI',
-  size: 11,
-  color: { argb: BLACK },
-};
-
-const headerFill: Fill = {
-  type: 'pattern',
-  pattern: 'solid',
-  fgColor: { argb: HEADER_COLOR },
-};
-
-const bodyFill: Fill = {
-  type: 'pattern',
-  pattern: 'solid',
-  fgColor: { argb: WHITE },
-};
-
-const centered: Partial<Alignment> = {
-  horizontal: 'center',
-  vertical: 'middle',
-};
 
 export function buildExcelWorkbook(
   simulacoes: SimulacaoSalva[],
@@ -570,173 +487,6 @@ function buildEvidenciasRows(simulacoes: SimulacaoSalva[]): RowInput[] {
   return rows;
 }
 
-function createReportSheet(
-  workbook: Workbook,
-  name: string,
-  columns: ReportColumn[],
-  rows: RowInput[],
-): Worksheet {
-  const worksheet = workbook.addWorksheet(name, {
-    properties: { defaultRowHeight: 16.5 },
-    views: [
-      {
-        state: 'frozen',
-        xSplit: 1,
-        ySplit: 4,
-        topLeftCell: 'B5',
-        activeCell: 'B5',
-        showGridLines: false,
-      },
-    ],
-  });
-
-  worksheet.getColumn(1).width = 2.625;
-  columns.forEach((column, index) => {
-    const worksheetColumn = worksheet.getColumn(index + 2);
-    worksheetColumn.width = column.width;
-    worksheetColumn.hidden = column.hidden ?? false;
-  });
-
-  const headerRow = worksheet.getRow(HEADER_ROW);
-  columns.forEach((column, index) => {
-    const cell = headerRow.getCell(index + 2);
-    cell.value = column.header;
-    applyHeaderStyle(cell, column.headerRole);
-  });
-  headerRow.height = 33;
-
-  rows.forEach((row, rowOffset) => {
-    const excelRow = worksheet.getRow(DATA_START_ROW + rowOffset);
-    let wrappedLines = 1;
-
-    columns.forEach((column, columnOffset) => {
-      const cell = excelRow.getCell(columnOffset + 2);
-      cell.value = normalizeCellValue(row[column.key], column.kind);
-      applyBodyStyle(cell, column);
-      if (column.wrap) {
-        wrappedLines = Math.max(
-          wrappedLines,
-          estimateWrappedLines(String(row[column.key] ?? ''), column.width),
-        );
-      }
-    });
-
-    excelRow.height = Math.min(49.5, wrappedLines * 16.5);
-  });
-
-  applySubtotals(worksheet, columns);
-
-  const lastColumn = columns.length + 1;
-  const lastRow = Math.max(HEADER_ROW, DATA_START_ROW + rows.length - 1);
-  worksheet.autoFilter = {
-    from: { row: HEADER_ROW, column: 2 },
-    to: { row: lastRow, column: lastColumn },
-  };
-
-  return worksheet;
-}
-
-function applySubtotals(worksheet: Worksheet, columns: ReportColumn[]): void {
-  columns.forEach((column, index) => {
-    if (column.kind !== 'currency') return;
-    const columnNumber = index + 2;
-    const columnLetter = worksheet.getColumn(columnNumber).letter;
-    const cell = worksheet.getCell(2, columnNumber);
-    cell.value = { formula: `SUBTOTAL(9,${columnLetter}${DATA_START_ROW}:${columnLetter}${LAST_EXCEL_ROW})` };
-    cell.numFmt = ECAC_CURRENCY_FORMAT;
-    applyHeaderStyle(cell, column.headerRole);
-  });
-  worksheet.getRow(2).height = 16.5;
-}
-
-function applyHeaderStyle(cell: Cell, role?: ReportColumn['headerRole']): void {
-  const roleColor = role === 'current'
-    ? CURRENT_HEADER_COLOR
-    : role === 'correct'
-      ? CORRECT_HEADER_COLOR
-      : null;
-
-  cell.font = roleColor
-    ? { ...headerFont, color: { argb: BLACK } }
-    : headerFont;
-  cell.fill = roleColor
-    ? { type: 'pattern', pattern: 'solid', fgColor: { argb: roleColor } }
-    : headerFill;
-  cell.alignment = { ...centered, wrapText: true };
-  cell.border = allBorders;
-}
-
-function applyBodyStyle(cell: Cell, column: ReportColumn): void {
-  cell.font = bodyFont;
-  cell.fill = bodyFill;
-  cell.alignment = {
-    horizontal: column.align ?? 'center',
-    vertical: 'middle',
-    wrapText: column.wrap ?? false,
-  };
-  cell.border = allBorders;
-  cell.numFmt = numberFormatFor(column.kind);
-}
-
-function getProjectionValues(dcomp: DCOMP): ProjectionValues {
-  const creditoTransmissaoAtual = dcomp.divergenciaDetalhes?.esperado ??
-    dcomp.valorCreditoDataTransmissao;
-  const creditoTransmissaoCorreto = dcomp.divergenciaDetalhes?.calculado ??
-    dcomp.valorCreditoDataTransmissao;
-  const debitosAtuais = sum(dcomp.debitos.map((debito) => debito.valorTotalOriginal));
-  const debitosCorretos = sum(dcomp.debitos.map((debito) => debito.valorTotal));
-  const creditoUsadoAtual = dcomp.valorUtilizadoPerdcompOriginal;
-  const creditoUsadoCorreto = dcomp.valorUtilizadoPerdcomp;
-
-  return {
-    creditoInicialAtual: dcomp.valorTotalCreditoDetalhadoOriginal,
-    creditoInicialCorreto: dcomp.valorTotalCreditoDetalhado,
-    creditoTransmissaoAtual,
-    creditoTransmissaoCorreto,
-    debitosAtuais,
-    debitosCorretos,
-    creditoUsadoAtual,
-    creditoUsadoCorreto,
-    saldoProximaAtual: dcomp.saldoCreditoOriginalAnterior ??
-      creditoTransmissaoAtual - creditoUsadoAtual,
-    saldoProximaCorreto: dcomp.saldoCreditoOriginalCalculado ??
-      creditoTransmissaoCorreto - creditoUsadoCorreto,
-  };
-}
-
-function getVigencia(dcomp: DCOMP): 'vigente' | 'nao_vigente' | 'indeterminado' {
-  const registrada = dcomp.statusProcessamentoConsultivo?.vigenciaCascata;
-  if (registrada === 'vigente' || registrada === 'nao_vigente' || registrada === 'indeterminado') {
-    return registrada;
-  }
-  return isVigente(dcomp.situacao, dcomp.tipoDocumento, dcomp.id)
-    ? 'vigente'
-    : 'nao_vigente';
-}
-
-function formatVigencia(vigencia: ReturnType<typeof getVigencia>): string {
-  if (vigencia === 'nao_vigente') return 'Não vigente';
-  if (vigencia === 'indeterminado') return 'Indeterminada';
-  return 'Vigente';
-}
-
-function hasManualDebitEdit(dcomp: DCOMP): boolean {
-  return dcomp.debitos.some((debito) =>
-    hasMeaningfulDifference(debito.valorPrincipalOriginal, debito.valorPrincipal) ||
-    hasMeaningfulDifference(debito.valorMultaOriginal, debito.valorMulta) ||
-    hasMeaningfulDifference(debito.valorJurosOriginal, debito.valorJuros) ||
-    hasMeaningfulDifference(debito.valorTotalOriginal, debito.valorTotal),
-  );
-}
-
-function hasMeaningfulDifference(current: number, correct: number): boolean {
-  return Math.abs(current - correct) > 0.05;
-}
-
-function isHypothetical(dcomp: DCOMP): boolean {
-  return dcomp.indicadorCredito.toLocaleLowerCase('pt-BR').includes('hipot');
-}
-
 function getOperationalStatus(input: {
   dcomp: DCOMP;
   vigencia: ReturnType<typeof getVigencia>;
@@ -831,94 +581,6 @@ function applyProjectionStatusStyles(
   });
 }
 
-function numberFormatFor(kind: ColumnKind | undefined): string {
-  switch (kind) {
-    case 'currency':
-      return ECAC_CURRENCY_FORMAT;
-    case 'date':
-      return DATE_FORMAT;
-    case 'datetime':
-      return DATE_TIME_FORMAT;
-    case 'month':
-      return MONTH_FORMAT;
-    case 'percentage':
-      return PERCENT_FORMAT;
-    case 'cnpj':
-      return CNPJ_FORMAT;
-    case 'integer':
-      return '0';
-    default:
-      return '@';
-  }
-}
-
-function normalizeCellValue(value: CellInput, kind: ColumnKind | undefined): ExcelJS.CellValue {
-  if (value === undefined || value === null || value === '') return null;
-  if (kind === 'cnpj') return toCnpjNumber(value);
-  return value;
-}
-
-function toCnpjNumber(value: CellInput): number | null {
-  const digits = String(value ?? '').replace(/\D/g, '');
-  if (digits.length !== 14) return null;
-  return Number(digits);
-}
-
-function toExcelDate(value: unknown, includeTime = false): Date | string | null {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(
-      value.getFullYear(),
-      value.getMonth(),
-      value.getDate(),
-      includeTime ? value.getHours() : 0,
-      includeTime ? value.getMinutes() : 0,
-      includeTime ? value.getSeconds() : 0,
-    );
-  }
-  if (typeof value !== 'string' || value.trim() === '') return null;
-
-  const brazilian = value.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
-  if (brazilian) {
-    return new Date(
-      Number(brazilian[3]),
-      Number(brazilian[2]) - 1,
-      Number(brazilian[1]),
-      includeTime ? Number(brazilian[4] ?? 0) : 0,
-      includeTime ? Number(brazilian[5] ?? 0) : 0,
-      includeTime ? Number(brazilian[6] ?? 0) : 0,
-    );
-  }
-
-  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-  if (iso) {
-    return new Date(
-      Number(iso[1]),
-      Number(iso[2]) - 1,
-      Number(iso[3]),
-      includeTime ? Number(iso[4] ?? 0) : 0,
-      includeTime ? Number(iso[5] ?? 0) : 0,
-      includeTime ? Number(iso[6] ?? 0) : 0,
-    );
-  }
-
-  return value.trim();
-}
-
-function toExcelMonth(value: unknown): Date | string | null {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(value.getFullYear(), value.getMonth(), 1);
-  }
-  if (typeof value !== 'string' || value.trim() === '') return null;
-
-  const monthYear = value.match(/^(\d{1,2})\/(\d{4})$/);
-  if (monthYear) return new Date(Number(monthYear[2]), Number(monthYear[1]) - 1, 1);
-
-  const isoMonth = value.match(/^(\d{4})-(\d{2})(?:-\d{2})?/);
-  if (isoMonth) return new Date(Number(isoMonth[1]), Number(isoMonth[2]) - 1, 1);
-
-  return value.trim();
-}
-
 function premissa(
   categoria: string,
   simulacaoId: string,
@@ -957,38 +619,6 @@ function addFonteRows(
   }
 }
 
-function joinFontes(fontes: FonteNormativa[] | undefined): string {
-  return (fontes ?? [])
-    .map((fonte) => [fonte.ato, fonte.artigo, fonte.arquivo, fonte.paginaOuSecao].filter(Boolean).join(' | '))
-    .filter(Boolean)
-    .join('; ');
-}
-
-function joinList(values: string[] | undefined): string {
-  return values?.join('; ') ?? '';
-}
-
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0);
-}
-
-function estimateWrappedLines(value: string, width: number): number {
-  if (value === '') return 1;
-  const approximateCharactersPerLine = Math.max(8, Math.floor(width * 0.8));
-  return Math.max(
-    1,
-    ...value.split('\n').map((line) => Math.ceil(line.length / approximateCharactersPerLine)),
-  );
-}
-
-function formatFileTimestamp(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}${month}${day}_${hours}${minutes}`;
-}
 
 const BADGE_GLOSSARY: Record<string, string> = {
   RFB: 'Valor importado da Receita Federal do Brasil.',

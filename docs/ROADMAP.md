@@ -38,6 +38,9 @@
 - Regra consultiva `Em analise` foi implementada como vigente, editavel e cancelavel.
 - Snapshots e PDF ganharam rastreabilidade de origem/metodo/status por valor.
 - Exportacao Excel consolidada foi implementada com sete abas auditaveis e perfil visual do relatorio e-CAC; a primeira aba e um roteiro de retificacoes com valores atuais/corretos, causa e orientacao por PER/DCOMP.
+- Exportacao Excel completa de cadeias (`ExcelCadeiasCompletasService`) cobre TODAS as cadeias do
+  Relatorio de Analise e-CAC importado, em seis abas, com granularidade de debito e colunas de filtro
+  equivalentes as do Simulador de Cascata. Dois modos: completo (Original/Atual/Delta) e somente e-CAC.
 - `exceljs` e carregado dinamicamente em chunk proprio; `xlsx` permanece exclusivo da importacao.
 - Ordenacao de cadeias passou a usar hora, minuto e segundo da aba `PERDCOMP Débitos` como desempate seguro, preservando linhagem e ordem de importacao como fallback.
 

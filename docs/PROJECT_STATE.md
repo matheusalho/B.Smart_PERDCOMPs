@@ -59,3 +59,23 @@ Estado verificado em 2026-06-23:
 2. Refinar ergonomia visual do PDF se as celulas ficarem densas em cadeias grandes.
 3. Avaliar reducao adicional dos chunks grandes de PDF, importacao e Excel.
 4. Expandir a rastreabilidade de DCOMP hipotetica quando houver data e metodologia completas.
+
+## Relatorio Excel Completo de Cadeias (03/09/2026)
+
+- `src/services/ExcelCadeiasCompletasService.ts` exporta todas as cadeias do Relatorio de Analise
+  e-CAC importado (nao apenas as simulacoes salvas), em seis abas: Cascata PER-DCOMP, Debitos por
+  Linha, Resumo por Cadeia, SELIC e Rastreabilidade, Qualidade da Importacao, Legenda e Parametros.
+- A aba "Debitos por Linha" tem granularidade de debito: uma linha por debito, repetindo os campos do
+  documento. PER e qualquer documento sem debitos ocupam uma linha com as colunas de debito vazias.
+- Cinco colunas `Filtro:` reproduzem literalmente os predicados de `TimelineCascata.dcompsFiltradas`,
+  permitindo reproduzir no Excel os filtros do Simulador de Cascata.
+- Dois modos: `completo` (cada valor em Original/Atual/Delta) e `ecac` (somente valores originais).
+  O modo e-CAC reconstroi a cadeia pristina (`excel/pristineChain.ts`) e reprocessa com
+  `recalcularCadeia`, para que o efeito de simulacao a jusante nao apareca rotulado como original.
+- Infraestrutura de planilha extraida para `src/services/excel/workbookKit.ts` (compartilhada com o
+  relatorio de simulacoes, que segue intacto) e fatos por DCOMP em `src/services/excel/dcompFacts.ts`.
+- A coluna `Divergente` deriva de `divergenciaDetalhes`, e nao de `isDivergente` — este ultimo esta
+  desativado no `CalculoService` (`isDivergente = false` incondicional).
+- Benchmark medido na planilha DASA real (1.507 documentos / 4.658 debitos, ~107 colunas na aba de
+  debitos): **1.329 ms** no modo completo, contra o limite de 15.000 ms fixado no design. Geracao
+  segue na thread principal; Web Worker nao foi necessario.
